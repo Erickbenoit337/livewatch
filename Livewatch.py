@@ -9304,7 +9304,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
     print("=" * 80)
-    print(f"🌐 http://localhost:8001")
+    print(f"🌐 http://localhost:{port}")
     print(f"👤 Propriétaire: {settings.OWNER_ID} / {settings.ADMIN_PASSWORD}")
     print(f"📺 {len(EXTERNAL_STREAMS)} flux externes ({sum(1 for s in EXTERNAL_STREAMS if s['stream_type'] == 'youtube')} YouTube)")
     print(f"🌍 {len(IPTV_PLAYLISTS)} playlists IPTV (pays/subdivisions/villes/catégories)")
