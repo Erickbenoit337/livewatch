@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-10">
+    <!-- Hero section -->
+    <section class="relative bg-gradient-to-br from-red-700 via-red-600 to-orange-500 text-white rounded-2xl p-8 overflow-hidden">
+        <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-4 right-8 text-9xl">📺</div>
+            <div class="absolute bottom-4 right-40 text-6xl">🎬</div>
+        </div>
+        <div class="relative max-w-2xl">
+            <h1 class="text-4xl font-bold mb-3">Bienvenue sur <span class="font-black">{{ app_name }}</span></h1>
+            <p class="text-lg mb-6 text-red-100">Regardez des milliers de chaînes TV, IPTV Monde (pays/régions/villes), YouTube Live, Radio & lives communautaires.</p>
+            <div class="flex flex-wrap gap-3">
+                <a href="#live" class="bg-white text-red-600 px-5 py-2.5 rounded-full font-semibold hover:bg-red-50 transition shadow">
+                    <i class="fas fa-circle text-red-500 mr-2 text-xs animate-pulse"></i>En direct
+                </a>
+                <a href="#iptv" class="bg-red-800/60 text-white px-5 py-2.5 rounded-full font-semibold hover:bg-red-800 transition">
+                    <i class="fas fa-globe mr-2"></i>IPTV Monde
+                </a>
+                <a href="#external-streams" onclick="setTimeout(function(){var b=document.querySelector('[onclick*=youtube]');if(b)b.click();},300);" class="bg-white/20 text-white px-5 py-2.5 rounded-full font-semibold hover:bg-white/30 transition border border-white/30">
+                    ▶️ YouTube
+                </a>
+                <a href="#external-streams" onclick="setTimeout(function(){var b=document.querySelector('[onclick*=audio]');if(b)b.click();},300);" class="bg-white/20 text-white px-5 py-2.5 rounded-full font-semibold hover:bg-white/30 transition border border-white/30">
+                    📻 Radio
+                </a>
+                <a href="/events" class="bg-white/20 text-white px-5 py-2.5 rounded-full font-semibold hover:bg-white/30 transition border border-white/30">
+                    📅 Événements
+                </a>
+                <a href="/go-live" class="bg-white/20 text-white px-5 py-2.5 rounded-full font-semibold hover:bg-white/30 transition border border-white/30">
+                    <i class="fas fa-video mr-2"></i>Go Live
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Playlists IPTV par pays -->
+    {% if pl_countries and not selected_playlist %}
+    <section id="iptv">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-bold flex items-center gap-2">
+                <span class="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-lg">🌍</span>
+                IPTV par pays
+            </h2>
+            <span class="text-sm text-gray-400">{{ pl_countries|length }} pays</span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {% for playlist in pl_countries %}
+            <a href="/?playlist={{ playlist.name }}" class="stream-card group relative rounded-xl overflow-hidden hover:shadow-xl border border-gray-200 dark:border-gray-700 aspect-video flex flex-col justify-end"
+               style="background: url('https://flagcdn.com/w320/{{ playlist.country|lower }}.png') center center / cover no-repeat; min-height: 80px;">
+                <!-- Overlay dégradé -->
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent group-hover:from-black/90 transition-all duration-200"></div>
+                <!-- Texte en bas -->
+                <div class="relative z-10 p-2 text-white">
+                    <h3 class="font-bold text-xs leading-tight drop-shadow">{{ playlist.display_name.split(' ',1)[1] if ' ' in playlist.display_name else playlist.display_name }}</h3>
+                    <p class="text-xs text-white/70">{{ playlist.channel_count }} chaînes</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Subdivisions (régions/provinces) -->
+    {% if pl_subdivisions and not selected_playlist %}
+    <section>
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <span class="w-7 h-7 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center text-sm">🗺️</span>
+            Régions & Provinces
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {% for playlist in pl_subdivisions %}
+            <a href="/?playlist={{ playlist.name }}" class="stream-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl p-3 text-center border border-gray-100 dark:border-gray-700">
+                <div class="text-2xl mb-1">🗺️</div>
+                <h3 class="font-semibold text-xs leading-tight">{{ playlist.display_name }}</h3>
+                <p class="text-xs text-gray-400 mt-1">{{ playlist.channel_count }} chaînes</p>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Villes -->
+    {% if pl_cities and not selected_playlist %}
+    <section>
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <span class="w-7 h-7 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg flex items-center justify-center text-sm">🏙️</span>
+            Villes
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {% for playlist in pl_cities %}
+            <a href="/?playlist={{ playlist.name }}" class="stream-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl p-3 text-center border border-gray-100 dark:border-gray-700">
+                <div class="text-2xl mb-1">🏙️</div>
+                <h3 class="font-semibold text-xs leading-tight">{{ playlist.display_name }}</h3>
+                <p class="text-xs text-gray-400 mt-1">{{ playlist.channel_count }} chaînes</p>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Catégories IPTV -->
+    {% if pl_categories and not selected_playlist %}
+    <section>
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <span class="w-7 h-7 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center text-sm">📂</span>
+            Catégories thématiques
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {% for playlist in pl_categories %}
+            {% set cat_bg = {
+                'sport': 'from-blue-600 to-blue-900',
+                'news': 'from-slate-600 to-slate-900',
+                'documentary': 'from-amber-600 to-amber-900',
+                'music': 'from-pink-500 to-rose-800',
+                'kids': 'from-yellow-400 to-orange-500',
+                'movies': 'from-purple-600 to-purple-900',
+                'science': 'from-teal-600 to-teal-900',
+                'travel': 'from-emerald-500 to-green-800',
+                'religion': 'from-green-600 to-teal-800',
+                'business': 'from-indigo-600 to-indigo-900',
+                'cooking': 'from-orange-500 to-red-700',
+                'auto': 'from-zinc-600 to-zinc-900',
+                'gaming': 'from-fuchsia-600 to-purple-900',
+                'education': 'from-sky-500 to-blue-800',
+                'nature': 'from-lime-600 to-green-800',
+                'fashion': 'from-rose-400 to-pink-700',
+                'health': 'from-red-500 to-rose-700',
+                'history': 'from-amber-700 to-yellow-900',
+                'tech': 'from-cyan-600 to-blue-800',
+                'weather': 'from-sky-400 to-blue-600',
+                'general': 'from-gray-600 to-gray-900',
+            } %}
+            {% set matched_bg = namespace(val='from-gray-600 to-gray-900') %}
+            {% for key, val in cat_bg.items() %}
+                {% if key in playlist.name %}{% set matched_bg.val = val %}{% endif %}
+            {% endfor %}
+            {% set cat_icons = {
+                'sport':'⚽','news':'📰','doc':'🎥','music':'🎵','kid':'🧸','movie':'🎬',
+                'sci':'🔬','travel':'✈️','relig':'🕊️','busi':'💼','cook':'🍳','auto':'🚗',
+                'gaming':'🎮','edu':'📚','nature':'🌲','fashion':'👗','health':'💪',
+                'history':'📜','tech':'💻','weather':'🌤️','general':'📺'
+            } %}
+            {% set icon = namespace(val='📂') %}
+            {% for key, val in cat_icons.items() %}
+                {% if key in playlist.name %}{% set icon.val = val %}{% endif %}
+            {% endfor %}
+            <a href="/?playlist={{ playlist.name }}" class="stream-card group rounded-xl overflow-hidden hover:shadow-xl border border-gray-100 dark:border-gray-700 relative">
+                <div class="bg-gradient-to-br {{ matched_bg.val }} h-24 flex flex-col items-center justify-center relative">
+                    <span class="text-3xl mb-1 drop-shadow-lg group-hover:scale-110 transition-transform duration-200">{{ icon.val }}</span>
+                    <div class="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-all duration-200"></div>
+                </div>
+                <div class="p-2 bg-white dark:bg-gray-800">
+                    <h3 class="font-semibold text-xs leading-tight text-center truncate">{{ playlist.display_name }}</h3>
+                    <p class="text-xs text-gray-400 text-center mt-0.5">{{ playlist.channel_count or 0 }} chaînes</p>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Chaînes IPTV d'une playlist sélectionnée -->
+    {% if selected_playlist and iptv_channels %}
+    <section>
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-2xl font-bold flex items-center gap-2">
+                <a href="/" class="text-gray-400 hover:text-red-600 transition">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                {{ selected_playlist.display_name }}
+                <span class="text-sm text-gray-400 font-normal bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{{ iptv_channels|length }}</span>
+            </h2>
+            {% if selected_playlist.last_sync %}
+            <span class="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                <i class="fas fa-sync-alt mr-1"></i>{{ selected_playlist.last_sync.strftime('%d/%m/%Y') }}
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Filtres catégories des chaînes -->
+        {% set ch_cats = [] %}
+        {% for ch in iptv_channels %}
+            {% if ch.category and ch.category not in ch_cats %}
+                {% set _ = ch_cats.append(ch.category) %}
+            {% endif %}
+        {% endfor %}
+        {% if ch_cats|length > 1 %}
+        <div class="flex flex-wrap gap-2 mb-4" id="cat-filters">
+            <button onclick="filterChannels('all', this)"
+                class="px-3 py-1.5 rounded-full text-sm font-medium bg-red-600 text-white transition cat-filter-btn">
+                🌐 Toutes
+            </button>
+            {% for cat in ch_cats | sort %}
+            <button onclick="filterChannels('{{ cat }}', this)"
+                class="cat-filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-600 hover:text-white transition capitalize">
+                {{ cat | replace('_', ' ') | title }}
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3" id="channels-grid">
+            {% for channel in iptv_channels %}
+            <a href="/watch/iptv/{{ channel.id }}" class="stream-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl border border-gray-100 dark:border-gray-700 channel-card" data-category="{{ channel.category }}">
+                <div class="relative h-20 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                    {% if channel.logo %}
+                    <img src="{{ channel.logo }}" alt="{{ channel.name }}" class="h-full w-full object-contain p-2" loading="lazy">
+                    {% else %}
+                    <i class="fas fa-tv text-3xl text-gray-400"></i>
+                    {% endif %}
+                    <span class="absolute top-1 left-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded live-badge">LIVE</span>
+                    {% if channel.stream_type == 'youtube' %}
+                    <span class="absolute top-1 right-1 bg-red-700 text-white text-xs px-1.5 py-0.5 rounded">▶️</span>
+                    {% endif %}
+                </div>
+                <div class="p-2.5">
+                    <h3 class="font-semibold text-xs truncate">{{ channel.name }}</h3>
+                    <div class="flex items-center justify-between mt-1">
+                        <span class="text-xs text-gray-400">{{ channel.country }}</span>
+                        <button onclick="addToFavorites('{{ channel.id }}', 'iptv', event)" class="text-yellow-400 hover:text-yellow-500 transition">
+                            <i class="far fa-star text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if selected_playlist and not iptv_channels %}
+    <section>
+        <div class="flex items-center gap-4 mb-6">
+            <a href="/" class="text-gray-400 hover:text-red-600 transition text-xl"><i class="fas fa-arrow-left"></i></a>
+            <h2 class="text-2xl font-bold">{{ selected_playlist.display_name }}</h2>
+        </div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center border border-gray-100 dark:border-gray-700">
+            <div class="text-5xl mb-4">📡</div>
+            <h3 class="text-xl font-semibold mb-2">Chaînes en cours de chargement</h3>
+            <p class="text-gray-400 mb-6">La synchronisation IPTV est en cours. Revenez dans quelques minutes.</p>
+            <a href="/" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-xl font-medium transition inline-flex items-center gap-2">
+                <i class="fas fa-arrow-left"></i> Retour à l'accueil
+            </a>
+        </div>
+    </section>
+    {% endif %}
+
+<script>
+    function filterChannels(cat, btn) {
+        // Update button styles
+        document.querySelectorAll('.cat-filter-btn').forEach(b => {
+            b.className = b.className.replace('bg-red-600 text-white', 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-600 hover:text-white');
+        });
+        btn.className = btn.className.replace('bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-red-600 hover:text-white', 'bg-red-600 text-white');
+
+        // Filter cards
+        document.querySelectorAll('.channel-card').forEach(card => {
+            if (cat === 'all' || card.dataset.category === cat) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+</script>
+
+    <!-- Streams communautaires en direct -->
+    {% if live_streams %}
+    <section id="live">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-2xl font-bold flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-red-600"></span>
+                </span>
+                Lives communautaires
+            </h2>
+            <span class="text-sm text-gray-400">{{ live_streams|length }} en direct</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {% for stream in live_streams %}
+            <a href="/watch/user/{{ stream.id }}" class="stream-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl border border-gray-100 dark:border-gray-700 group">
+                <div class="relative pb-9/16 bg-gray-200 dark:bg-gray-700">
+                    {% if stream.thumbnail %}
+                    <img src="{{ stream.thumbnail }}" alt="{{ stream.title }}" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                    {% else %}
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <i class="fas fa-user text-4xl text-gray-400"></i>
+                    </div>
+                    {% endif %}
+                    <span class="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-0.5 rounded-full live-badge flex items-center gap-1">
+                        <i class="fas fa-circle text-xs"></i> LIVE
+                    </span>
+                    <span class="absolute bottom-2 right-2 bg-black/70 backdrop-blur text-white text-xs px-2 py-0.5 rounded-full">
+                        <i class="fas fa-eye mr-1"></i>{{ stream.viewer_count }}
+                    </span>
+                </div>
+                <div class="p-4">
+                    <h3 class="font-semibold truncate mb-1">{{ stream.title }}</h3>
+                    <div class="flex items-center justify-between text-sm text-gray-500">
+                        <span class="capitalize">{{ stream.category }}</span>
+                        <span><i class="fas fa-heart text-red-400 mr-1"></i>{{ stream.like_count }}</span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Chaînes TV, Radio & YouTube externes -->
+    {% if external_streams and not selected_playlist %}
+    <section id="external-streams">
+        <h2 class="text-2xl font-bold mb-5 flex items-center gap-2">
+            <span class="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center">📡</span>
+            Chaînes TV, Radio & YouTube
+        </h2>
+
+        <!-- Filtres par type -->
+        <div class="flex gap-2 mb-4 flex-wrap">
+            <button onclick="filterExternal('all', this)" class="filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-red-600 text-white">Tous</button>
+            <button onclick="filterExternal('hls', this)" class="filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">📺 TV/HLS</button>
+            <button onclick="filterExternal('dash', this)" class="filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">📡 DASH</button>
+            <button onclick="filterExternal('audio', this)" class="filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">📻 Radio</button>
+            <button onclick="filterExternal('youtube', this)" class="filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">▶️ YouTube</button>
+        </div>
+
+        <!-- Grille des chaînes -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3" id="external-grid">
+            {% for stream in external_streams %}
+            {% set bg_colors = {
+                'audio': 'from-orange-500 to-orange-700',
+                'youtube': 'from-red-600 to-red-800',
+                'dash': 'from-purple-600 to-purple-800',
+                'mp4': 'from-blue-600 to-blue-800',
+                'hls': 'from-gray-700 to-gray-900'
+            } %}
+            {% set cat_bg = {
+                'news': 'from-blue-700 to-blue-900',
+                'sports': 'from-green-600 to-green-900',
+                'entertainment': 'from-purple-600 to-pink-800',
+                'radio': 'from-orange-500 to-red-700',
+                'religion': 'from-teal-600 to-teal-900',
+                'webcam': 'from-cyan-600 to-cyan-900',
+                'science': 'from-indigo-600 to-indigo-900',
+                'gaming': 'from-fuchsia-600 to-fuchsia-900'
+            } %}
+            {% set bg_gradient = cat_bg.get(stream.category, bg_colors.get(stream.stream_type, 'from-gray-700 to-gray-900')) %}
+            <a href="/watch/external/{{ stream.id }}" class="stream-card group rounded-xl overflow-hidden hover:shadow-xl border border-gray-100 dark:border-gray-700 external-card bg-white dark:bg-gray-800" data-type="{{ stream.stream_type }}">
+                <div class="relative h-24 bg-gradient-to-br {{ bg_gradient }} flex items-center justify-center overflow-hidden">
+                    {% if stream.logo %}
+                    <div class="absolute inset-0 bg-gradient-to-br {{ bg_gradient }} opacity-60"></div>
+                    <img src="{{ stream.logo }}" alt="{{ stream.title }}" class="relative z-10 h-14 w-auto max-w-full object-contain drop-shadow-lg" loading="lazy" onerror="this.parentElement.classList.add('no-logo')">
+                    {% else %}
+                    <span class="text-4xl opacity-80">
+                        {% if stream.stream_type == 'audio' %}📻
+                        {% elif stream.stream_type == 'youtube' %}▶️
+                        {% elif stream.category == 'news' %}📰
+                        {% elif stream.category == 'sports' %}⚽
+                        {% elif stream.category == 'gaming' %}🎮
+                        {% elif stream.category == 'religion' %}🕌
+                        {% elif stream.category == 'webcam' %}📹
+                        {% else %}📺{% endif %}
+                    </span>
+                    {% endif %}
+                    <span class="absolute top-1.5 left-1.5 bg-red-600/90 text-white text-xs px-1.5 py-0.5 rounded-full font-bold live-badge">LIVE</span>
+                    {% if stream.stream_type == 'youtube' %}
+                    <span class="absolute top-1.5 right-1.5 bg-red-700/90 backdrop-blur text-white text-xs px-1.5 py-0.5 rounded-full">▶️ YT</span>
+                    {% elif stream.stream_type == 'audio' %}
+                    <span class="absolute top-1.5 right-1.5 bg-orange-600/90 text-white text-xs px-1.5 py-0.5 rounded-full">📻 Radio</span>
+                    {% elif stream.quality %}
+                    <span class="absolute top-1.5 right-1.5 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded-full">{{ stream.quality }}</span>
+                    {% endif %}
+                </div>
+                <div class="p-2.5">
+                    <h3 class="font-semibold text-xs truncate">{{ stream.title }}</h3>
+                    <div class="flex items-center justify-between mt-1">
+                        <span class="text-xs text-gray-400">{{ stream.country }} · {{ stream.quality }}</span>
+                        <button onclick="addToFavorites('{{ stream.id }}', 'external', event)" class="text-yellow-400 hover:text-yellow-500 transition">
+                            <i class="far fa-star text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Message si aucun contenu -->
+    {% if not live_streams and not external_streams and not iptv_channels and not pl_countries %}
+    <div class="text-center py-20">
+        <div class="text-8xl mb-6">📺</div>
+        <h3 class="text-2xl font-bold text-gray-600 dark:text-gray-300 mb-2">Aucun contenu trouvé</h3>
+        <p class="text-gray-400 mb-6">La synchronisation IPTV est peut-être en cours. Réessayez dans quelques minutes.</p>
+        <a href="/" class="bg-red-600 text-white px-6 py-3 rounded-full hover:bg-red-700 transition shadow">
+            <i class="fas fa-sync-alt mr-2"></i>Rafraîchir
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function filterExternal(type, btn) {
+        // Mettre à jour les boutons
+        document.querySelectorAll('.filter-btn').forEach(b => {
+            b.className = 'filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+        });
+        btn.className = 'filter-btn px-3 py-1.5 rounded-full text-sm font-medium bg-red-600 text-white';
+        
+        // Filtrer les cartes
+        document.querySelectorAll('.external-card').forEach(card => {
+            if (type === 'all' || card.dataset.type === type) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}

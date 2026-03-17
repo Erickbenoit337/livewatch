@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <meta name="description" content="Plateforme de streaming ultime — TV, Sports, IPTV Monde (pays/régions/villes), YouTube Live, Radio & Lives communautaires">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Player Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mpegts.js/dist/mpegts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/video.js@8.10.0/dist/video.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/video.js@8.10.0/dist/video-js.min.css" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .transition-theme {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            background: #000;
+            border-radius: 0.75rem;
+        }
+        
+        .video-container video,
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+        }
+
+        /* Contrôle volume flottant sur le lecteur vidéo */
+        .vol-overlay {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(6px);
+            border-radius: 20px;
+            padding: 6px 12px;
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+        .video-container:hover .vol-overlay { opacity: 1; }
+        .vol-overlay input[type=range] {
+            -webkit-appearance: none; appearance: none;
+            width: 80px; height: 4px; border-radius: 2px;
+            background: rgba(255,255,255,0.3); outline: none; cursor: pointer;
+        }
+        .vol-overlay input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #e63946; cursor: pointer;
+        }
+        .vol-overlay button {
+            background: none; border: none; color: #fff;
+            font-size: 16px; cursor: pointer; padding: 0; line-height: 1;
+        }
+        
+        .live-badge {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: #2d3748;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4a5568;
+        }
+        
+        .stream-card {
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+        
+        .stream-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.15);
+        }
+        
+        .pb-9-16 {
+            padding-bottom: 56.25%;
+        }
+        
+        .logo-container {
+            max-width: 200px;
+            max-height: 60px;
+        }
+        
+        .logo-container img {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 60px;
+            object-fit: contain;
+        }
+    </style>
+    
+    <script>
+        // Gestion du thème
+        (function() {
+            var saved = localStorage.getItem('theme');
+            var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && dark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+        
+        function toggleTheme() {
+            var html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+    </script>
+    <!-- Chart.js — chargé dans le head pour être disponible partout -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+    <!-- ═══ OPTIMISATION DONNÉES MOBILES ═══
+         Détecte le type de connexion et adapte automatiquement :
+         - Mobile 2G/3G lent  → images lazy, qualité réduite, animations OFF, banner avertissement
+         - Mobile 4G/5G       → images lazy seulement (économie légère)
+         - WiFi / câble       → comportement normal HD
+         - Save-Data header   → mode économie maximum
+    -->
+    <script>
+    (function() {
+        var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        var saveData = conn && conn.saveData;
+        var effectiveType = conn ? (conn.effectiveType || '') : '';
+        var downlink = conn ? (conn.downlink || 10) : 10;
+
+        // Classifier la connexion
+        // 'slow'   : 2G, 3G lent, save-data activé ou < 1 Mbps
+        // 'medium' : 4G moyen, 3G rapide, 1-5 Mbps
+        // 'fast'   : WiFi, 5G, > 5 Mbps
+        var netClass = 'fast';
+        if (saveData || effectiveType === '2g' || effectiveType === 'slow-2g' || downlink < 0.5) {
+            netClass = 'slow';
+        } else if (effectiveType === '3g' || (downlink >= 0.5 && downlink < 2)) {
+            netClass = 'medium';
+        } else if (effectiveType === '4g' || downlink >= 2) {
+            netClass = 'fast';
+        }
+
+        // Exposer globalement pour le player et les composants
+        window._lwNetClass  = netClass;
+        window._lwSaveData  = saveData;
+        window._lwDownlink  = downlink;
+
+        // Appliquer la classe sur <html> pour que le CSS puisse réagir
+        document.documentElement.setAttribute('data-net', netClass);
+
+        // En mode lent : désactiver les animations CSS lourdes
+        if (netClass === 'slow') {
+            var style = document.createElement('style');
+            style.textContent = [
+                '*, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }',
+                '.animate-ping, .animate-pulse, .live-badge { animation: none !important; }',
+                '[data-net="slow"] img[loading!="eager"] { loading: lazy; }',
+            ].join('');
+            document.head.appendChild(style);
+        }
+
+        // Lazy-loading images pour mobile (slow + medium)
+        if (netClass !== 'fast') {
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('img:not([loading])').forEach(function(img) {
+                    img.setAttribute('loading', 'lazy');
+                });
+            });
+        }
+
+        // Afficher banner si connexion lente APRÈS chargement
+        if (netClass === 'slow' || saveData) {
+            document.addEventListener('DOMContentLoaded', function() {
+                var banner = document.getElementById('data-saver-banner');
+                if (banner) banner.style.display = 'flex';
+            });
+        }
+
+        // Écouter les changements de connexion
+        if (conn) {
+            conn.addEventListener('change', function() {
+                // Recharger la page si la connexion change significativement
+                var newType = conn.effectiveType || '';
+                if ((netClass === 'slow' && (newType === '4g' || conn.downlink > 2)) ||
+                    (netClass === 'fast' && (newType === '2g' || newType === 'slow-2g'))) {
+                    location.reload();
+                }
+            });
+        }
+    })();
+    </script>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-theme">
+
+    <!-- ═══ BANNER ÉCONOMIE DE DONNÉES ═══ (visible uniquement en connexion lente) -->
+    <div id="data-saver-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9000;background:linear-gradient(to right,#1e3a5f,#1e40af);color:#fff;padding:8px 16px;font-size:12px;align-items:center;justify-content:space-between;gap:8px;border-top:2px solid #3b82f6;">
+        <span>📶 Connexion lente détectée — Mode économie de données activé (qualité réduite, images allégées)</span>
+        <button onclick="document.getElementById('data-saver-banner').style.display='none'" style="background:rgba(255,255,255,0.15);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0;">✕ Fermer</button>
+    </div>
+
+    <!-- ═══ ÉCRAN DE DÉMARRAGE — première visite uniquement ═══ -->
+    <div id="splash-screen" style="display:none;position:fixed;inset:0;z-index:99999;background:#0f0f1a;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.6s ease;">
+        <img src="/static/livewatch.png" alt="Livewatch"
+             style="max-width:320px;width:80vw;height:auto;object-fit:contain;margin-bottom:2rem;animation:splashPulse 1.2s ease-in-out infinite alternate;"
+             onerror="this.style.display='none';document.getElementById('splash-fallback').style.display='flex';">
+        <div id="splash-fallback" style="display:none;flex-direction:column;align-items:center;gap:12px;margin-bottom:2rem;">
+            <div style="width:80px;height:80px;background:linear-gradient(135deg,#dc2626,#f97316);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;">▶</div>
+            <span style="font-size:2rem;font-weight:900;color:#fff;letter-spacing:-1px;">Livewatch</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <div style="width:8px;height:8px;background:#dc2626;border-radius:50%;animation:splashDot 1s ease-in-out infinite;"></div>
+            <div style="width:8px;height:8px;background:#f97316;border-radius:50%;animation:splashDot 1s ease-in-out 0.2s infinite;"></div>
+            <div style="width:8px;height:8px;background:#dc2626;border-radius:50%;animation:splashDot 1s ease-in-out 0.4s infinite;"></div>
+        </div>
+        <p style="color:rgba(255,255,255,0.5);font-size:12px;margin-top:1.5rem;letter-spacing:2px;text-transform:uppercase;">Chargement…</p>
+    </div>
+    <style>
+        @keyframes splashPulse { from { opacity:0.85; transform:scale(0.97); } to { opacity:1; transform:scale(1.03); } }
+        @keyframes splashDot   { 0%,100%{ opacity:0.3; transform:scale(0.7); } 50%{ opacity:1; transform:scale(1.2); } }
+    </style>
+    <script>
+        (function() {
+            // ── Splash : uniquement à la PREMIÈRE entrée dans l'appli ──────
+            // Règles :
+            //  1. Jamais sur /admin, /api, /proxy, /static, /ws
+            //  2. Jamais sur les pages /watch/* (watch external / IPTV / user)
+            //  3. Uniquement si c'est la toute première page vue dans cette session
+            //     (sessionStorage vide = nouvel onglet ou nouvelle fenêtre)
+
+            var path = window.location.pathname;
+
+            // Pages où le splash est INTERDIT (requêtes internes, admin, lecteur)
+            var excluded = (
+                path.startsWith('/admin') ||
+                path.startsWith('/api/') ||
+                path.startsWith('/proxy/') ||
+                path.startsWith('/static/') ||
+                path.startsWith('/ws') ||
+                path.startsWith('/watch/') ||
+                path.startsWith('/playlist/')
+            );
+
+            // Le splash n'est montré qu'une seule fois par session
+            // (sessionStorage est vide si c'est le premier chargement de l'onglet)
+            var alreadySeen = sessionStorage.getItem('_lw_entered');
+
+            if (!excluded && !alreadySeen) {
+                // Marquer immédiatement pour que toutes les navigations suivantes
+                // dans cette session ne montrent plus le splash
+                sessionStorage.setItem('_lw_entered', '1');
+
+                var splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.style.display = 'flex';
+
+                    function hideSplash() {
+                        if (splash.style.display === 'none') return;
+                        splash.style.opacity = '0';
+                        setTimeout(function() { splash.style.display = 'none'; }, 650);
+                    }
+
+                    // Masquer dès que la page est chargée
+                    if (document.readyState === 'complete') {
+                        setTimeout(hideSplash, 600);
+                    } else {
+                        window.addEventListener('load', function() {
+                            setTimeout(hideSplash, 600);
+                        });
+                    }
+
+                    // Sécurité absolue : disparaît après 3s dans tous les cas
+                    setTimeout(hideSplash, 3000);
+                }
+            }
+        })();
+    </script>
+
+    <!-- Navigation -->
+    <nav class="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-50 border-b border-gray-200 dark:border-gray-700">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <a href="/" class="flex items-center space-x-2">
+                    <div class="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center shadow">
+                        {% if logo_path %}
+                        <img src="/static/logo" alt="{{ app_name }}" class="h-6 w-auto">
+                        {% else %}
+                        <i class="fas fa-play text-white"></i>
+                        {% endif %}
+                    </div>
+                    <span class="text-2xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">{{ app_name }}</span>
+                </a>
+
+                <!-- Menu principal -->
+                <div class="hidden md:flex items-center space-x-6">
+                    <div class="relative group">
+                        <button class="flex items-center text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-500 transition font-medium">
+                            <i class="fas fa-th-large mr-1 text-sm"></i> Catégories <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                        </button>
+                        <div class="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-2xl hidden group-hover:block z-50 border border-gray-100 dark:border-gray-700 max-h-96 overflow-y-auto custom-scrollbar">
+                            {% for cat in categories[:14] %}
+                            <a href="/?category={{ cat.id }}" class="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition first:rounded-t-xl last:rounded-b-xl">
+                                <span>{{ cat.icon }} {{ cat.name }}</span>
+                                <span class="text-xs text-gray-400 bg-gray-100 dark:bg-gray-600 px-2 py-0.5 rounded-full">{{ cat.count }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <a href="/?category=sports" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium">⚽ Sports</a>
+                    <a href="/?category=news" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium">📰 News</a>
+                    <a href="/?category=radio" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium">📻 Radio</a>
+                    <a href="/?category=iptv" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium">🌍 IPTV</a>
+                    <a href="/?category=entertainment&filter=youtube" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium">▶️ YouTube</a>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center space-x-2">
+                    <a href="/search" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i class="fas fa-search text-lg"></i>
+                    </a>
+                    <a href="/go-live" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-4 py-2 rounded-full flex items-center space-x-2 transition shadow-md">
+                        <i class="fas fa-circle text-xs animate-pulse"></i>
+                        <span class="hidden sm:inline font-medium">Go Live</span>
+                    </a>
+                    <button onclick="toggleFavoritesPanel()" class="text-gray-700 dark:text-gray-300 hover:text-yellow-500 transition p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i class="fas fa-star text-lg"></i>
+                    </button>
+                    <button onclick="toggleTheme()" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <i class="fas fa-sun dark:hidden"></i>
+                        <i class="fas fa-moon hidden dark:inline"></i>
+                    </button>
+                    <a href="/events" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium hidden md:inline-flex items-center gap-1 px-3 py-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        📅 <span class="text-sm">Événements</span>
+                    </a>
+                    <a href="/settings" class="text-gray-700 dark:text-gray-300 hover:text-red-600 transition font-medium hidden md:inline-flex items-center gap-1 px-3 py-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
+                        ⚙️ <span class="text-sm">Paramètres</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Panneau des favoris -->
+    <div id="favorites-panel" class="hidden fixed top-20 right-4 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl z-50 p-4 border border-gray-100 dark:border-gray-700">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-lg">⭐ Mes favoris</h3>
+            <button onclick="toggleFavoritesPanel()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="favorites-list" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar"></div>
+    </div>
+
+    <!-- Toast notifications -->
+    <!-- Toast notifications -->
+    <div id="toast-container" class="fixed top-20 right-4 z-[100] space-y-2 pointer-events-none"></div>
+
+    <!-- Notification EPG banner -->
+    <div id="epg-notif-banner" style="display:none;position:fixed;top:64px;left:0;right:0;z-index:8000;background:#dc2626;color:#fff;font-size:13px;padding:8px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+        <span id="epg-notif-text"></span>
+        <button onclick="document.getElementById('epg-notif-banner').style.display='none'" style="margin-left:16px;font-weight:700;background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">✕</button>
+    </div>
+
+    <!-- Panneau EPG slide-over (caché par défaut) -->
+    <div id="epg-overlay" onclick="closeEPGSidebar()"
+         style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;"></div>
+    <aside id="epg-sidebar"
+           style="position:fixed;top:0;right:0;height:100%;width:320px;background:#fff;z-index:9100;
+                  transform:translateX(100%);transition:transform 0.3s cubic-bezier(0.4,0,0.2,1);
+                  display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.2);"
+           class="dark:bg-gray-800">
+        <div style="background:linear-gradient(to right,#dc2626,#f97316);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+            <h2 style="color:#fff;font-weight:700;font-size:13px;margin:0;display:flex;align-items:center;gap:8px;">📅 PROGRAMMES À VENIR</h2>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <a href="/events" style="color:rgba(255,255,255,0.8);font-size:12px;text-decoration:none;">Tout voir →</a>
+                <button onclick="closeEPGSidebar()" style="color:rgba(255,255,255,0.8);background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0;">✕</button>
+            </div>
+        </div>
+        <div id="epg-sidebar-content" style="flex:1;overflow-y:auto;">
+            <div style="padding:16px;text-align:center;color:#9ca3af;font-size:12px;">Chargement...</div>
+        </div>
+        <div style="padding:12px;border-top:1px solid #e5e7eb;flex-shrink:0;" class="dark:border-gray-700">
+            <a href="/events" style="display:block;text-align:center;font-size:12px;color:#dc2626;font-weight:600;text-decoration:none;padding:8px;border-radius:8px;">
+                Voir tous les programmes →
+            </a>
+        </div>
+    </aside>
+
+    <!-- Contenu principal (pleine largeur) -->
+    <main class="container mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-16">
+        <div class="container mx-auto px-4 py-10">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-9 h-9 bg-gradient-to-br from-red-600 to-red-800 rounded-full flex items-center justify-center">
+                            {% if logo_path %}
+                            <img src="/static/logo" alt="{{ app_name }}" class="h-5 w-auto">
+                            {% else %}
+                            <i class="fas fa-play text-white text-sm"></i>
+                            {% endif %}
+                        </div>
+                        <span class="text-xl font-bold">{{ app_name }}</span>
+                    </div>
+                    <p class="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
+                        Plateforme de streaming ultime — TV, Sports, IPTV Monde (pays/régions/villes), YouTube Live, Radio & Lives communautaires.
+                    </p>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-4 text-gray-800 dark:text-gray-200">Catégories</h3>
+                    <ul class="space-y-2 text-sm">
+                        {% for cat in categories[:6] %}
+                        <li><a href="/?category={{ cat.id }}" class="text-gray-500 dark:text-gray-400 hover:text-red-600 transition">{{ cat.icon }} {{ cat.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-4 text-gray-800 dark:text-gray-200">Navigation</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="/go-live" class="text-gray-500 dark:text-gray-400 hover:text-red-600 transition">🎥 Démarrer un live</a></li>
+                        <li><a href="/search" class="text-gray-500 dark:text-gray-400 hover:text-red-600 transition">🔍 Rechercher</a></li>
+                        <li><a href="/admin" class="text-gray-500 dark:text-gray-400 hover:text-red-600 transition">⚙️ Administration</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-4 text-gray-800 dark:text-gray-200">Sources</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        IPTV via <a href="https://github.com/iptv-org/iptv" target="_blank" class="text-red-500 hover:underline">iptv-org</a>.<br>
+                        YouTube via yt-dlp.<br>
+                        Plus de 10 milliers chaînes disponibles.
+                    </p>
+                    <p class="text-xs text-gray-400 mt-2">
+                        Dévèloppé par : BEN CORPORATION
+                    </p>
+                </div>
+            </div>
+            <!-- Bannière soutien -->
+            <div class="border-t border-gray-200 dark:border-gray-700 mt-8 pt-6">
+                <div class="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-2xl p-5 text-center mb-6 border border-red-100 dark:border-red-800/30">
+                    <p class="text-base font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                         Ce site est <span class="text-red-600 font-bold">gratuit</span>.
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        Si vous aimez le projet, vous pouvez soutenir le développement 
+                    </p>
+                    <div class="flex flex-col sm:flex-row gap-4 items-center justify-center flex-wrap">
+                        <!-- Airtel Money -->
+                        <div class="flex flex-col items-center bg-white dark:bg-gray-700 rounded-xl px-5 py-3 border border-red-200 dark:border-red-800 shadow-sm">
+                            <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">📱 Airtel Money (Congo)</span>
+                            <span class="text-lg font-black text-red-600 tracking-wide">+243996855061</span>
+                        </div>
+                        <!-- Ethereum / USDT ERC20 -->
+                        <div class="flex flex-col items-center bg-white dark:bg-gray-700 rounded-xl px-5 py-3 border border-purple-200 dark:border-purple-800 shadow-sm">
+                            <span class="text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">💎 Ethereum / USDT (ERC20)</span>
+                            <span class="text-xs font-mono font-bold text-purple-600 dark:text-purple-400 break-all text-center select-all">0x30B46539266EC13A2D3720bf0289d927647fdB3E</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center text-sm text-gray-400">
+                    &copy; 2026 {{ app_name }} v1.0 — Tous droits réservés.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts communs -->
+    <script>
+        function showNotification(message, type = 'info') {
+            const colors = {
+                error: 'bg-red-600',
+                success: 'bg-green-600',
+                warning: 'bg-yellow-500',
+                info: 'bg-blue-600'
+            };
+            const icons = {
+                error: 'fa-times-circle',
+                success: 'fa-check-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `flex items-center space-x-2 px-4 py-3 rounded-lg shadow-xl text-white pointer-events-auto transition-all duration-300 ${colors[type] || colors.info}`;
+            toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            
+            const container = document.getElementById('toast-container');
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        async function toggleFavoritesPanel() {
+            const panel = document.getElementById('favorites-panel');
+            panel.classList.toggle('hidden');
+            
+            if (!panel.classList.contains('hidden')) {
+                const list = document.getElementById('favorites-list');
+                list.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Chargement...</p>';
+                try {
+                    const response = await fetch('/api/favorites', { credentials: 'include' });
+                    const favorites = await response.json();
+                    
+                    if (favorites.length === 0) {
+                        list.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Aucun favori enregistré<br><span class="text-xs">Cliquez ⭐ sur une chaîne pour l'ajouter</span></p>';
+                    } else {
+                        list.innerHTML = favorites.map(function(f) {
+                            return '<a href="' + f.url + '" class="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition">'
+                                + '<div class="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">'
+                                + (f.logo ? '<img src="' + f.logo + '" class="w-full h-full object-contain p-1" loading="lazy" onerror="this.style.display='none'">' : '<i class="fas fa-tv text-gray-400"></i>')
+                                + '</div>'
+                                + '<div class="flex-1 min-w-0">'
+                                + '<div class="font-medium text-sm truncate">' + f.title + '</div>'
+                                + '<div class="text-xs text-gray-400">' + (f.type === 'user' && f.is_live ? '🔴 EN DIRECT' : (f.category || f.type)) + '</div>'
+                                + '</div></a>';
+                        }).join('');
+                    }
+                } catch(e) {
+                    list.innerHTML = '<p class="text-red-400 text-sm text-center py-4">Erreur de chargement</p>';
+                }
+            }
+        }
+
+        async function addToFavorites(streamId, type, event) {
+            if (event) { event.preventDefault(); event.stopPropagation(); }
+            try {
+                const formData = new FormData();
+                formData.append('stream_id', streamId);
+                formData.append('stream_type', type);
+                const response = await fetch('/api/favorites/add', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    showNotification('Ajouté aux favoris ⭐', 'success');
+                    // Feedback visuel sur le bouton cliqué
+                    if (event && event.currentTarget) {
+                        var btn = event.currentTarget;
+                        var icon = btn.querySelector('i');
+                        if (icon) { icon.classList.remove('far'); icon.classList.add('fas'); }
+                    }
+                } else {
+                    var data = await response.json().catch(function(){ return {}; });
+                    showNotification(data.error || 'Erreur favori (' + response.status + ')', 'error');
+                }
+            } catch(e) {
+                showNotification('Erreur réseau: ' + e.message, 'error');
+            }
+        }
+
+        // ===== SIDEBAR EPG SLIDE-OVER =====
+        const EPG_CAT_ICONS  = {sport:'⚽',cinema:'🎬',news:'📰',kids:'🧒',documentary:'🎥',music:'🎵',other:'📺'};
+        const EPG_CAT_LABELS = {sport:'SPORT',cinema:'CINÉMA',news:'NEWS',kids:'KIDS',documentary:'DOCUMENTAIRES',music:'MUSIQUE',other:'AUTRES'};
+        var _epgLoaded = false;
+        var _epgSidebarOpen = false;
+
+        function openEPGSidebar() {
+            var sidebar = document.getElementById('epg-sidebar');
+            var overlay = document.getElementById('epg-overlay');
+            if (sidebar) sidebar.style.transform = 'translateX(0)';
+            if (overlay) overlay.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+            _epgSidebarOpen = true;
+            // Toujours recharger pour que chaque visiteur voie les données fraîches
+            loadEPGSidebar();
+        }
+
+        function closeEPGSidebar() {
+            var sidebar = document.getElementById('epg-sidebar');
+            var overlay = document.getElementById('epg-overlay');
+            if (sidebar) sidebar.style.transform = 'translateX(100%)';
+            if (overlay) overlay.style.display = 'none';
+            document.body.style.overflow = '';
+            _epgSidebarOpen = false;
+        }
+
+        async function loadEPGSidebar() {
+            var container = document.getElementById('epg-sidebar-content');
+            if (!container) return;
+            container.innerHTML = '<div style="padding:24px 16px;text-align:center;color:#9ca3af;font-size:12px;"><div style="font-size:2rem;margin-bottom:8px;">⏳</div>Chargement des programmes...</div>';
+            try {
+                const r = await fetch('/api/events/upcoming', { credentials: 'include' });
+                if (!r.ok) {
+                    container.innerHTML = '<div style="padding:24px 16px;text-align:center;color:#9ca3af;font-size:12px;"><div style="font-size:2rem;margin-bottom:8px;">⚠️</div>Impossible de charger les programmes.<br><a href="/events" style="color:#dc2626;">Voir la page EPG →</a></div>';
+                    return;
+                }
+                const data = await r.json();
+                const cats = ['sport','cinema','news','kids','documentary','music','other'];
+                let html = '';
+                let hasAny = false;
+                cats.forEach(function(cat) {
+                    const evs = data[cat];
+                    if (!evs || evs.length === 0) return;
+                    hasAny = true;
+                    const icon = EPG_CAT_ICONS[cat] || '📺';
+                    const label = EPG_CAT_LABELS[cat] || cat;
+                    html += '<div style="padding:8px 12px;background:linear-gradient(to right,#fef2f2,#fff7ed);border-bottom:1px solid #fecaca;">'
+                          + '<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#dc2626;">'
+                          + icon + ' ' + label + '</span></div>';
+                    evs.forEach(function(ev) {
+                        var searchUrl = '/search?q=' + encodeURIComponent(ev.channel || ev.title);
+                        html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-bottom:1px solid #f3f4f6;background:#fff;" onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='#fff'">'
+                              + '<div style="width:36px;height:36px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#f3f4f6;display:flex;align-items:center;justify-content:center;">'
+                              + (ev.logo ? '<img src="' + ev.logo + '" style="width:100%;height:100%;object-fit:contain;padding:3px;" onerror="this.style.display='none'"><span style="font-size:18px;display:none">' + icon + '</span>' : '<span style="font-size:18px;">' + icon + '</span>')
+                              + '</div>'
+                              + '<div style="flex:1;min-width:0;">'
+                              + '<div style="font-size:12px;font-weight:600;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (ev.title||'') + '">' + (ev.title||'') + '</div>'
+                              + '<div style="font-size:11px;color:#9ca3af;margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">'
+                              + '<span style="background:#fef2f2;color:#dc2626;padding:1px 5px;border-radius:4px;font-weight:600;">🕐 ' + (ev.start_time||'') + '</span>'
+                              + '<span style="max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (ev.channel||'') + '</span>'
+                              + '</div>'
+                              + '<div style="margin-top:6px;display:flex;gap:4px;">'
+                              + '<a href="' + searchUrl + '" style="font-size:10px;background:#dc2626;color:#fff;padding:2px 8px;border-radius:4px;text-decoration:none;font-weight:600;">▶ Voir la chaîne</a>'
+                              + '<a href="/events" style="font-size:10px;background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:4px;text-decoration:none;">📅 Prog.</a>'
+                              + '</div>'
+                              + '</div></div>';
+                    });
+                });
+                if (!hasAny) {
+                    html = '<div style="padding:32px 16px;text-align:center;color:#9ca3af;">'
+                         + '<div style="font-size:2rem;margin-bottom:8px;">📅</div>'
+                         + '<p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 4px;">Aucun programme disponible</p>'
+                         + '<p style="font-size:11px;margin:0 0 12px;">Les données EPG se synchronisent au démarrage.<br>Si vide, allez dans Admin → EPG → Reset.</p>'
+                         + '<a href="/events" style="font-size:12px;background:#dc2626;color:#fff;padding:6px 16px;border-radius:8px;text-decoration:none;font-weight:600;">Voir la page programmes →</a></div>';
+                }
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<div style="padding:16px;text-align:center;color:#9ca3af;font-size:12px;">Erreur: ' + e.message + '<br><a href="/events" style="color:#dc2626;">Voir /events →</a></div>';
+            }
+        }
+
+        // ===== RAPPELS EPG =====
+        async function checkEPGReminders() {
+            try {
+                const r = await fetch('/api/events/reminders/check');
+                if (!r.ok) return;
+                const items = await r.json();
+                if (items.length > 0) {
+                    const ev = items[0];
+                    const banner = document.getElementById('epg-notif-banner');
+                    const txt = document.getElementById('epg-notif-text');
+                    if (banner && txt) {
+                        txt.textContent = '🔔 "' + ev.title + '" commence dans ' + ev.minutes_left + ' min sur ' + ev.channel + ' (' + ev.start_time + ')';
+                        banner.style.display = 'block';
+                        setTimeout(function() { banner.style.display = 'none'; }, 15000);
+                    }
+                    // Notification navigateur
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        items.forEach(e => {
+                            new Notification(`📺 ${e.title}`, {
+                                body: `Commence dans ${e.minutes_left} min sur ${e.channel} à ${e.start_time}`,
+                                icon: '/static/favicon.ico'
+                            });
+                        });
+                    }
+                }
+            } catch(e) { /* silencieux */ }
+        }
+
+        async function requestNotifPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ne charge la sidebar EPG que quand l'utilisateur l'ouvre
+            requestNotifPermission();
+            // Vérifier les rappels toutes les minutes
+            setInterval(checkEPGReminders, 60000);
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

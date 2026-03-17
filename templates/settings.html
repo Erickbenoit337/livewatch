@@ -1,0 +1,612 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6 pb-12">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-gray-800 to-gray-900 text-white rounded-2xl p-6">
+        <h1 class="text-2xl font-bold flex items-center gap-3">⚙️ Paramètres</h1>
+        <p class="text-gray-400 mt-1 text-sm">Personnalisez votre expérience {{ app_name }}. Tous les paramètres sont sauvegardés localement sur votre appareil.</p>
+    </div>
+
+    <!-- ═══ DONNÉES MOBILES ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3 flex items-center gap-2">
+            <span class="text-white font-bold text-sm">📱 Économie de données mobiles</span>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 border border-blue-100 dark:border-blue-800">
+                💡 <strong>À quoi ça sert ?</strong> Sur une connexion mobile (4G/5G), chaque vidéo consomme des mégaoctets. Ces options vous permettent de regarder {{ app_name }} en utilisant moins de données.
+            </p>
+
+            <!-- Qualité vidéo -->
+            <div class="setting-row">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">🎬 Qualité vidéo par défaut</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            <strong>Auto</strong> : s'adapte à votre connexion. <strong>SD (480p)</strong> : environ 3× moins de données que HD. <strong>HD (720p)</strong> : qualité standard. <strong>Full HD</strong> : meilleure qualité, consomme le plus.
+                        </div>
+                    </div>
+                    <select id="s-quality" onchange="saveSetting('quality', this.value)"
+                        class="mt-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 min-w-[110px]">
+                        <option value="auto">🔄 Auto</option>
+                        <option value="sd">📉 SD (480p)</option>
+                        <option value="hd">📺 HD (720p)</option>
+                        <option value="fhd">🎬 Full HD</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Lecture automatique -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">▶️ Lecture automatique</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Si activée, les vidéos se lancent dès l'ouverture d'une chaîne. <strong>Désactivez</strong> pour économiser des données : vous choisissez vous-même quand démarrer.
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-autoplay" onchange="saveSetting('autoplay', this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Préchargement -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">⏩ Préchargement des thumbnails</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Les miniatures (vignettes) des chaînes sont chargées à l'avance pour un affichage plus rapide. <strong>Désactivez sur mobile</strong> pour économiser des données — les images se chargent à la demande uniquement.
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-preload" onchange="saveSetting('preload', this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Mode économie données -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">🔋 Mode économie de données</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Active automatiquement SD + désactive le préchargement + réduit les animations. <strong>Recommandé sur réseau mobile ou connexion lente.</strong> Économise jusqu'à 70% des données.
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-datasaver" onchange="applyDataSaver(this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                </div>
+                <div id="datasaver-info" class="hidden mt-2 text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg p-2 border border-green-200 dark:border-green-800">
+                    ✅ Mode économie actif : SD forcé, thumbnails à la demande, animations réduites.
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ═══ LECTURE & LECTEUR ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-purple-600 to-purple-700 px-5 py-3 flex items-center gap-2">
+            <span class="text-white font-bold text-sm">🎬 Lecteur vidéo</span>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <!-- Volume par défaut -->
+            <div class="setting-row">
+                <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-1">🔊 Volume par défaut</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Volume appliqué automatiquement à l'ouverture d'une chaîne (0 = muet, 100 = plein volume).</div>
+                <div class="flex items-center gap-3">
+                    <input type="range" id="s-volume" min="0" max="100" value="80"
+                        oninput="updateVolume(this.value)"
+                        class="flex-1 accent-purple-600">
+                    <span id="vol-val" class="text-sm font-bold text-purple-600 w-12 text-right">80%</span>
+                </div>
+            </div>
+
+            <!-- Sous-titres -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">📝 Sous-titres automatiques</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Active les sous-titres si disponibles sur la chaîne. Utile pour les chaînes en langue étrangère.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-subtitles" onchange="saveSetting('subtitles', this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Plein écran auto -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">🖥️ Plein écran automatique</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Passe automatiquement en plein écran dès qu'une chaîne démarre. Pratique sur tablette ou TV connectée.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-fullscreen" onchange="saveSetting('fullscreen', this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ═══ INTERFACE ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-3 flex items-center gap-2">
+            <span class="text-white font-bold text-sm">🎨 Interface & Affichage</span>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <!-- Thème -->
+            <div class="setting-row">
+                <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-1">🌙 Thème</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Le mode sombre réduit la fatigue oculaire et consomme moins de batterie sur les écrans OLED.</div>
+                <div class="flex gap-3">
+                    <button onclick="setTheme('light')" id="theme-light"
+                        class="theme-btn flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-medium transition hover:border-orange-400">
+                        ☀️ Clair
+                    </button>
+                    <button onclick="setTheme('dark')" id="theme-dark"
+                        class="theme-btn flex-1 py-2 rounded-xl border-2 border-gray-200 text-sm font-medium transition hover:border-orange-400">
+                        🌙 Sombre
+                    </button>
+                    <button onclick="setTheme('auto')" id="theme-auto"
+                        class="theme-btn flex-1 py-2 rounded-xl border-2 border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-sm font-medium transition">
+                        🔄 Auto
+                    </button>
+                </div>
+            </div>
+
+            <!-- Langue -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-1">🌐 Langue préférée des chaînes</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Filtre les chaînes recommandées selon la langue choisie. N'empêche pas de regarder les autres langues.</div>
+                <select id="s-lang" onchange="saveSetting('lang', this.value)"
+                    class="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                    <option value="fr">🇫🇷 Français</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="ar">🇸🇦 العربية</option>
+                    <option value="es">🇪🇸 Español</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                    <option value="pt">🇵🇹 Português</option>
+                    <option value="it">🇮🇹 Italiano</option>
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="zh">🇨🇳 中文</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                </select>
+            </div>
+
+            <!-- Animations -->
+            <div class="setting-row border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">✨ Animations de l'interface</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Désactivez pour une interface plus rapide, notamment sur les appareils moins puissants ou les connexions lentes.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-animations" onchange="saveSetting('animations', this.checked)" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ═══ NOTIFICATIONS ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-green-600 to-green-700 px-5 py-3 flex items-center gap-2">
+            <span class="text-white font-bold text-sm">🔔 Notifications</span>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <!-- Rappels EPG -->
+            <div class="setting-row">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">📅 Rappels programmes TV</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Recevez une notification 5 minutes avant le début d'un programme que vous avez mis en rappel depuis la page Événements.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-notif-epg" onchange="toggleNotifications(this.checked)" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    </label>
+                </div>
+                <div id="notif-status" class="mt-2 text-xs text-gray-400"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ═══ CONFIDENTIALITÉ ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-gradient-to-r from-red-600 to-red-700 px-5 py-3 flex items-center gap-2">
+            <span class="text-white font-bold text-sm">🔒 Confidentialité</span>
+        </div>
+        <div class="p-5 space-y-5">
+
+            <p class="text-xs text-gray-500 dark:text-gray-400 bg-red-50 dark:bg-red-900/20 rounded-xl p-3 border border-red-100 dark:border-red-800">
+                💡 {{ app_name }} ne collecte aucune donnée personnelle identifiable. Aucun compte requis. Vos préférences sont stockées uniquement sur votre appareil.
+            </p>
+
+            <!-- Historique local -->
+            <div class="setting-row">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm text-gray-800 dark:text-gray-200">🕐 Historique de visionnage local</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Garde en mémoire les dernières chaînes regardées pour un accès rapide. Stocké uniquement sur votre appareil, jamais envoyé.</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer mt-1">
+                        <input type="checkbox" id="s-history" onchange="saveSetting('history', this.checked)" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[\'\'] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Effacer données -->
+            <div class="border-t border-gray-100 dark:border-gray-700 pt-4">
+                <div class="font-semibold text-sm text-gray-800 dark:text-gray-200 mb-1">🗑️ Effacer toutes les données locales</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400 mb-3">Remet tous les paramètres à zéro et efface l'historique, les favoris locaux et les préférences. Action irréversible.</div>
+                <button onclick="clearAllData()"
+                    class="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-xl text-sm font-medium transition">
+                    🗑️ Effacer mes données locales
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ═══ BOUTONS D'ACTION PRINCIPAUX ═══ -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+        <div class="flex flex-col sm:flex-row gap-3">
+
+            <!-- Bouton Enregistrer -->
+            <button id="btn-save" onclick="saveSettings()"
+                class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold px-6 py-3 rounded-xl shadow transition flex items-center justify-center gap-2 text-sm">
+                <i class="fas fa-save"></i> Enregistrer les paramètres
+            </button>
+
+            <!-- Bouton Réinitialiser -->
+            <button id="btn-reset" onclick="resetSettings()"
+                class="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-bold px-6 py-3 rounded-xl shadow transition flex items-center justify-center gap-2 text-sm">
+                <i class="fas fa-undo"></i> Réinitialiser les paramètres d'origine
+            </button>
+
+        </div>
+
+        <!-- Zone de feedback -->
+        <div id="action-feedback" class="hidden mt-3 rounded-xl px-4 py-3 text-sm font-medium text-center transition-all"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ════════════════════════════════════════════════════════════════════
+    //  LIVEWATCH — Gestionnaire de paramètres
+    //  Stockage double :
+    //    • localStorage  → tous les paramètres (rapide, sans réseau)
+    //    • API /api/settings/* → theme + lang persistés en base (sync multi-appareils)
+    // ════════════════════════════════════════════════════════════════════
+
+    var SETTINGS_KEY = 'lw_settings_v2';
+
+    var DEFAULTS = {
+        quality:    'auto',
+        autoplay:   true,
+        preload:    true,
+        datasaver:  false,
+        volume:     80,
+        subtitles:  false,
+        fullscreen: false,
+        theme:      'auto',
+        lang:       'fr',
+        animations: true,
+        notif_epg:  false,
+        history:    true,
+    };
+
+    // ── Lecture / écriture localStorage ─────────────────────────────────
+    function getSettings() {
+        try {
+            return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'));
+        } catch(e) { return Object.assign({}, DEFAULTS); }
+    }
+
+    function setLocalSettings(s) {
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch(e) {}
+    }
+
+    // ── Collecter TOUS les champs du formulaire ─────────────────────────
+    function collectFormValues() {
+        var s = {};
+        // Select
+        var sq = document.getElementById('s-quality');   if (sq) s.quality = sq.value;
+        var sl = document.getElementById('s-lang');      if (sl) s.lang    = sl.value;
+        // Checkboxes
+        var toggleMap = {
+            's-autoplay':   'autoplay',
+            's-preload':    'preload',
+            's-datasaver':  'datasaver',
+            's-subtitles':  'subtitles',
+            's-fullscreen': 'fullscreen',
+            's-animations': 'animations',
+            's-notif-epg':  'notif_epg',
+            's-history':    'history',
+        };
+        for (var id in toggleMap) {
+            var el = document.getElementById(id);
+            if (el) s[toggleMap[id]] = el.checked;
+        }
+        // Volume
+        var sv = document.getElementById('s-volume'); if (sv) s.volume = parseInt(sv.value);
+        // Thème (stocké dans variable globale)
+        s.theme = window._currentTheme || getSettings().theme;
+        return s;
+    }
+
+    // ── Peupler le formulaire depuis un objet settings ──────────────────
+    function populateForm(s) {
+        var sq = document.getElementById('s-quality'); if (sq) sq.value = s.quality || 'auto';
+        var sl = document.getElementById('s-lang');    if (sl) sl.value = s.lang    || 'fr';
+        var sv = document.getElementById('s-volume');
+        if (sv) {
+            sv.value = s.volume !== undefined ? s.volume : 80;
+            var vv = document.getElementById('vol-val');
+            if (vv) vv.textContent = sv.value + '%';
+        }
+        var toggleMap = {
+            's-autoplay':   'autoplay',
+            's-preload':    'preload',
+            's-datasaver':  'datasaver',
+            's-subtitles':  'subtitles',
+            's-fullscreen': 'fullscreen',
+            's-animations': 'animations',
+            's-notif-epg':  'notif_epg',
+            's-history':    'history',
+        };
+        for (var id in toggleMap) {
+            var el = document.getElementById(id);
+            var key = toggleMap[id];
+            if (el) el.checked = (s[key] !== undefined) ? s[key] : DEFAULTS[key];
+        }
+        window._currentTheme = s.theme || 'auto';
+        updateThemeButtons(window._currentTheme);
+
+        // Afficher/cacher info data saver
+        var di = document.getElementById('datasaver-info');
+        if (di) { if (s.datasaver) di.classList.remove('hidden'); else di.classList.add('hidden'); }
+
+        updateNotifStatus();
+    }
+
+    // ── Feedback visuel ─────────────────────────────────────────────────
+    function showFeedback(msg, type) {
+        var fb = document.getElementById('action-feedback');
+        if (!fb) return;
+        fb.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'text-green-800', 'text-red-800',
+                            'dark:bg-green-900/30', 'dark:bg-red-900/30', 'dark:text-green-300', 'dark:text-red-300');
+        if (type === 'success') {
+            fb.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900/30', 'dark:text-green-300');
+        } else {
+            fb.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900/30', 'dark:text-red-300');
+        }
+        fb.textContent = msg;
+        fb.classList.remove('hidden');
+        clearTimeout(window._fbTimer);
+        window._fbTimer = setTimeout(function() { fb.classList.add('hidden'); }, 4000);
+    }
+
+    function setBtnLoading(id, loading, label) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = loading;
+        if (loading) {
+            btn.dataset.orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + label;
+        } else if (btn.dataset.orig) {
+            btn.innerHTML = btn.dataset.orig;
+        }
+    }
+
+    // ── ✅ ENREGISTRER ──────────────────────────────────────────────────
+    async function saveSettings() {
+        setBtnLoading('btn-save', true, 'Enregistrement...');
+        var s = collectFormValues();
+
+        // 1. Sauvegarder en localStorage (immédiat)
+        setLocalSettings(s);
+
+        // 2. Appliquer le thème tout de suite
+        applyThemeNow(s.theme);
+
+        // 3. Envoyer theme + lang au serveur (persistance base de données)
+        try {
+            var r = await fetch('/api/settings/save', {
+                method:      'POST',
+                credentials: 'include',
+                headers:     { 'Content-Type': 'application/json' },
+                body:        JSON.stringify({ theme: s.theme, lang: s.lang }),
+            });
+            var data = await r.json();
+            if (data.success) {
+                showFeedback('✅ Paramètres enregistrés avec succès !', 'success');
+            } else {
+                showFeedback('✅ Paramètres sauvegardés localement (hors ligne).', 'success');
+            }
+        } catch(e) {
+            // Pas de connexion — les préférences sont quand même dans localStorage
+            showFeedback('✅ Paramètres sauvegardés sur cet appareil.', 'success');
+        }
+        setBtnLoading('btn-save', false);
+    }
+
+    // ── 🔄 RÉINITIALISER ────────────────────────────────────────────────
+    async function resetSettings() {
+        if (!confirm('Réinitialiser tous les paramètres aux valeurs d'origine ?\nCette action est irréversible.')) return;
+        setBtnLoading('btn-reset', true, 'Réinitialisation...');
+
+        // 1. Remettre les valeurs par défaut dans localStorage
+        setLocalSettings(Object.assign({}, DEFAULTS));
+
+        // 2. Repeupler le formulaire
+        populateForm(DEFAULTS);
+
+        // 3. Appliquer le thème par défaut
+        applyThemeNow('auto');
+
+        // 4. Notifier le serveur
+        try {
+            await fetch('/api/settings/reset', { method: 'POST', credentials: 'include' });
+        } catch(e) {}
+
+        showFeedback('🔄 Tous les paramètres ont été réinitialisés aux valeurs d'origine.', 'success');
+        setBtnLoading('btn-reset', false);
+    }
+
+    // ── Thème ────────────────────────────────────────────────────────────
+    function setTheme(theme) {
+        window._currentTheme = theme;
+        updateThemeButtons(theme);
+        applyThemeNow(theme);
+    }
+
+    function applyThemeNow(theme) {
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else if (theme === 'light') {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        } else {
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (prefersDark) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+            localStorage.removeItem('theme');
+        }
+    }
+
+    function updateThemeButtons(theme) {
+        ['light','dark','auto'].forEach(function(t) {
+            var btn = document.getElementById('theme-' + t);
+            if (!btn) return;
+            var active = (t === theme);
+            btn.classList.toggle('border-orange-400', active);
+            btn.classList.toggle('bg-orange-50', active);
+            btn.classList.toggle('border-gray-200', !active);
+        });
+    }
+
+    // ── Mode économie de données ─────────────────────────────────────────
+    function applyDataSaver(enabled) {
+        var sq = document.getElementById('s-quality');
+        var sp = document.getElementById('s-preload');
+        var sa = document.getElementById('s-autoplay');
+        var di = document.getElementById('datasaver-info');
+        if (enabled) {
+            if (sq) sq.value = 'sd';
+            if (sp) sp.checked = false;
+            if (sa) sa.checked = false;
+            if (di) di.classList.remove('hidden');
+        } else {
+            if (sq) sq.value = DEFAULTS.quality;
+            if (sp) sp.checked = DEFAULTS.preload;
+            if (sa) sa.checked = DEFAULTS.autoplay;
+            if (di) di.classList.add('hidden');
+        }
+    }
+
+    // ── Notifications ────────────────────────────────────────────────────
+    async function toggleNotifications(enabled) {
+        if (enabled) {
+            if (!('Notification' in window)) {
+                updateNotifStatus('❌ Non supporté par ce navigateur.');
+                var el = document.getElementById('s-notif-epg'); if (el) el.checked = false;
+                return;
+            }
+            var perm = await Notification.requestPermission();
+            if (perm === 'granted') {
+                updateNotifStatus('✅ Activées — rappels 5 min avant vos programmes.');
+            } else {
+                updateNotifStatus('⚠️ Refusées — activez dans les réglages du navigateur.');
+                var el2 = document.getElementById('s-notif-epg'); if (el2) el2.checked = false;
+            }
+        } else {
+            updateNotifStatus('🔕 Notifications désactivées.');
+        }
+    }
+
+    function updateNotifStatus() {
+        var el = document.getElementById('notif-status');
+        if (!el) return;
+        if (!('Notification' in window)) {
+            el.textContent = '❌ Non supporté par ce navigateur.';
+        } else if (Notification.permission === 'granted') {
+            el.textContent = '✅ Autorisées par le navigateur.';
+        } else if (Notification.permission === 'denied') {
+            el.textContent = '❌ Bloquées — changez dans les réglages du navigateur.';
+        } else {
+            el.textContent = '⏳ Non encore autorisées.';
+        }
+    }
+
+    // ── Volume ───────────────────────────────────────────────────────────
+    function updateVolume(val) {
+        var vv = document.getElementById('vol-val');
+        if (vv) vv.textContent = val + '%';
+    }
+
+    // ── Effacer toutes les données locales ───────────────────────────────
+    function clearAllData() {
+        if (!confirm('Effacer tous vos paramètres et données locales ?\nCette action est irréversible.')) return;
+        try {
+            localStorage.removeItem(SETTINGS_KEY);
+            localStorage.removeItem('theme');
+            localStorage.removeItem('lw_favorites');
+            sessionStorage.clear();
+        } catch(e) {}
+        showFeedback('✅ Données effacées. Rechargement...', 'success');
+        setTimeout(function() { location.reload(); }, 1500);
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        // Charger depuis localStorage d'abord (instantané)
+        var s = getSettings();
+        window._currentTheme = s.theme;
+        populateForm(s);
+
+        // Puis essayer de récupérer les préférences serveur (theme + lang)
+        fetch('/api/settings/load', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success && data.prefs) {
+                    // Fusionner les prefs serveur (plus fiables pour theme/lang)
+                    var merged = Object.assign({}, s, data.prefs);
+                    setLocalSettings(merged);
+                    populateForm(merged);
+                }
+            })
+            .catch(function() { /* hors ligne — localStorage suffit */ });
+
+        // Lier l'input volume
+        var sv = document.getElementById('s-volume');
+        if (sv) sv.addEventListener('input', function() { updateVolume(this.value); });
+    });
+</script>
+{% endblock %}

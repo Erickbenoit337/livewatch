@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Accès refusé - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="min-h-[70vh] flex items-center justify-center">
+    <div class="text-center max-w-md">
+        <div class="w-24 h-24 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i class="fas fa-ban text-red-600 text-4xl"></i>
+        </div>
+        <h1 class="text-3xl font-bold mb-3">Accès refusé</h1>
+        <p class="text-gray-500 dark:text-gray-400 mb-8">{{ reason }}</p>
+        <a href="/" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-semibold transition shadow-lg inline-flex items-center gap-2">
+            <i class="fas fa-home"></i> Retour à l'accueil
+        </a>
+    </div>
+</div>
+{% endblock %}

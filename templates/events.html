@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Programmes TV — EPG - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-red-700 via-red-600 to-orange-500 text-white rounded-2xl p-6">
+        <h1 class="text-3xl font-bold flex items-center gap-3">📅 Programmes à venir</h1>
+        <p class="text-red-100 mt-1 text-sm">
+            <span class="font-bold text-white">{{ total_events }}</span> événements de <span class="font-bold text-white">{{ countries|length }}</span> pays — tous les programmes disponibles
+        </p>
+    </div>
+
+    <!-- Filtres -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700">
+        <div class="flex flex-wrap gap-2 items-center">
+            <span class="text-sm font-semibold text-gray-500 mr-2">Catégorie :</span>
+            <a href="/events{% if current_country %}?country={{ current_country }}{% endif %}"
+               class="px-3 py-1.5 rounded-xl text-sm font-medium transition {% if not current_category %}bg-red-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200{% endif %}">
+                Toutes
+            </a>
+            {% for cat_id, cat_icon, cat_label in [('sport','⚽','Sport'),('cinema','🎬','Cinéma'),('news','📰','News'),('kids','🧒','Kids'),('documentary','🎥','Docs'),('music','🎵','Musique'),('other','📺','Autres')] %}
+            <a href="/events?category={{ cat_id }}{% if current_country %}&country={{ current_country }}{% endif %}"
+               class="px-3 py-1.5 rounded-xl text-sm font-medium transition {% if current_category == cat_id %}bg-red-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200{% endif %}">
+                {{ cat_icon }} {{ cat_label }}
+            </a>
+            {% endfor %}
+        </div>
+        {% if countries %}
+        <div class="flex flex-wrap gap-2 items-center mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+            <span class="text-sm font-semibold text-gray-500 mr-2">Pays :</span>
+            <a href="/events{% if current_category %}?category={{ current_category }}{% endif %}"
+               class="px-3 py-1.5 rounded-xl text-sm font-medium transition {% if not current_country %}bg-red-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200{% endif %}">
+                Tous
+            </a>
+            {% for c in countries %}
+            <a href="/events?country={{ c }}{% if current_category %}&category={{ current_category }}{% endif %}"
+               class="px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1 transition {% if current_country == c %}bg-red-600 text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200{% endif %}">
+                <img src="https://flagcdn.com/w20/{{ c|lower }}.png" class="w-4 h-3 object-cover rounded-sm" onerror="this.style.display='none'">
+                {{ c }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Événements groupés par catégorie -->
+    {% set cat_meta = {'sport': ('⚽','Sport','from-blue-600 to-blue-700'), 'cinema': ('🎬','Cinéma','from-purple-600 to-purple-700'), 'news': ('📰','News','from-gray-600 to-gray-700'), 'kids': ('🧒','Kids','from-pink-500 to-pink-600'), 'documentary': ('🎥','Documentaires','from-green-600 to-green-700'), 'music': ('🎵','Musique','from-yellow-500 to-orange-500'), 'other': ('📺','Autres','from-red-600 to-red-700')} %}
+
+    {% if events %}
+    {% for cat_id in ['sport','cinema','news','kids','documentary','music','other'] %}
+    {% if events_by_cat.get(cat_id) %}
+    {% set meta = cat_meta.get(cat_id, ('📺', cat_id, 'from-red-600 to-red-700')) %}
+    <div class="space-y-3">
+        <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-r {{ meta[2] }} text-white px-4 py-1.5 rounded-xl font-bold text-sm flex items-center gap-2">
+                {{ meta[0] }} {{ meta[1]|upper }}
+            </div>
+            <div class="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for ev in events_by_cat[cat_id] %}
+            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition group event-card"
+                 data-endtime="{{ ev.end_time.strftime('%Y-%m-%dT%H:%M:%S') }}"
+                 id="evcard-{{ ev.id }}">
+                <div class="bg-gradient-to-r {{ meta[2] }} h-1"></div>
+                <div class="p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            {% if ev.channel_logo %}
+                            <img src="{{ ev.channel_logo }}" class="w-full h-full object-contain p-1" loading="lazy" onerror="this.style.display='none'">
+                            {% else %}
+                            <span class="text-2xl">{{ meta[0] }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-bold text-sm leading-tight truncate group-hover:text-red-600 transition">{{ ev.title }}</h3>
+                            <div class="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                {% if ev.country %}
+                                <img src="https://flagcdn.com/w20/{{ ev.country|lower }}.png" class="w-4 h-3 object-cover rounded-sm" onerror="this.style.display='none'">
+                                {% endif %}
+                                {{ ev.channel_name or 'Chaîne inconnue' }}
+                            </div>
+                        </div>
+                    </div>
+                    {% if ev.description %}
+                    <p class="text-xs text-gray-400 mt-2 line-clamp-2">{{ ev.description }}</p>
+                    {% endif %}
+                    <div class="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex items-center gap-1 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-lg">
+                            🕐 {{ ev.start_time.strftime('%H:%M') }} → {{ ev.end_time.strftime('%H:%M') }}
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <a href="/search?q={{ ev.channel_name|urlencode }}" class="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition font-medium" title="Rechercher {{ ev.channel_name }} dans le catalogue">
+                                ▶ Regarder
+                            </a>
+                            <button onclick="remindEvent('{{ ev.id }}', '{{ ev.title|e }}', '{{ ev.start_time.strftime('%H:%M') }}')"
+                                id="remind-{{ ev.id }}"
+                                class="text-xs {% if ev.id in reminders %}bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200{% else %}bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-100{% endif %} px-3 py-1 rounded-lg transition font-medium">
+                                {% if ev.id in reminders %}🔔 Activé{% else %}🔔 Rappel{% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center shadow border border-gray-100 dark:border-gray-700">
+        <div class="text-6xl mb-4">📅</div>
+        <h2 class="text-xl font-bold mb-2">Aucun programme prévu</h2>
+        <p class="text-gray-400 text-sm">Aucun événement correspondant à vos filtres n'est prévu pour aujourd'hui.</p>
+        <a href="/events" class="mt-4 inline-block bg-red-600 text-white px-6 py-2 rounded-xl hover:bg-red-700 transition text-sm font-medium">Voir tous les programmes</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function remindEvent(eventId, title, startTime) {
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+        try {
+            var r = await fetch('/api/events/' + eventId + '/remind', { method: 'POST', credentials: 'include' });
+            var d = await r.json();
+            var btn = document.getElementById('remind-' + eventId);
+            if (d.action === 'added') {
+                if (btn) { btn.textContent = '🔔 Rappel activé'; btn.classList.add('bg-blue-200','dark:bg-blue-800','text-blue-800'); btn.classList.remove('bg-gray-100','dark:bg-gray-700','text-gray-600'); }
+                showNotification('🔔 Rappel activé pour "' + title + '" à ' + startTime, 'success');
+            } else {
+                if (btn) { btn.textContent = '🔔 Me rappeler'; btn.classList.remove('bg-blue-200','dark:bg-blue-800','text-blue-800'); btn.classList.add('bg-gray-100','dark:bg-gray-700','text-gray-600'); }
+                showNotification('Rappel supprimé', 'info');
+            }
+        } catch(e) {
+            showNotification('Erreur réseau', 'error');
+        }
+    }
+
+    // ── Suppression automatique des événements passés (côté client) ──────
+    // Vérifie toutes les 60 secondes et retire les cartes dont end_time est dépassé
+    function removeExpiredEvents() {
+        var now = new Date();
+        var removed = 0;
+        document.querySelectorAll('.event-card').forEach(function(card) {
+            var et = card.getAttribute('data-endtime');
+            if (!et) return;
+            // data-endtime est en UTC (serveur), on compare en UTC
+            var endUtc = new Date(et + 'Z');
+            var cutoff = new Date(endUtc.getTime() + 10 * 60 * 1000); // +10 min
+            if (now > cutoff) {
+                card.style.transition = 'opacity 0.5s';
+                card.style.opacity = '0';
+                setTimeout(function() { card.remove(); }, 500);
+                removed++;
+            }
+        });
+        if (removed > 0) {
+            // Recharger le compteur dans le header
+            var h = document.querySelector('[data-event-count]');
+            if (h) {
+                var total = document.querySelectorAll('.event-card').length;
+                h.textContent = total;
+            }
+        }
+    }
+
+    // Lancer immédiatement + toutes les 60s
+    removeExpiredEvents();
+    setInterval(removeExpiredEvents, 60000);
+</script>
+{% endblock %}

@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}{{ channel.name }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Lecteur principal (vidéo ou audio selon le type) -->
+    <div class="lg:col-span-3 space-y-4">
+
+        {% if channel.stream_type == 'audio' %}
+        <!-- Lecteur audio dédié pour chaînes radio IPTV -->
+        <div class="rounded-2xl overflow-hidden shadow-2xl" style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);">
+            <div class="relative flex flex-col items-center justify-center px-8 pt-10 pb-6">
+                <div id="audio-artwork" class="relative w-40 h-40 rounded-full shadow-2xl mb-6 flex items-center justify-center overflow-hidden" style="background:linear-gradient(135deg,#e63946,#f4a261);">
+                    {% if channel.logo %}<img src="{{ channel.logo }}" class="w-full h-full object-contain p-4" onerror="this.style.display='none'">
+                    {% else %}<span style="font-size:4rem;">📻</span>{% endif %}
+                    <div id="pulse-ring" class="hidden absolute inset-0 rounded-full border-4 border-white/30" style="animation:audioPulse 1.5s ease-in-out infinite;"></div>
+                </div>
+                <h1 class="text-white text-2xl font-bold text-center mb-1">{{ channel.name }}</h1>
+                <p class="text-white/60 text-sm text-center mb-1">{{ channel.country }}{% if channel.language %} · {{ channel.language|upper }}{% endif %}</p>
+                <span class="bg-red-600 text-white text-xs px-3 py-1 rounded-full font-bold live-badge flex items-center gap-1 mb-4">
+                    <span style="width:6px;height:6px;border-radius:50%;background:#fff;animation:audioPulse 1s infinite;display:inline-block;"></span> EN DIRECT
+                </span>
+                <canvas id="audio-visualizer" width="500" height="60" style="width:100%;max-width:500px;opacity:0.7;border-radius:8px;"></canvas>
+            </div>
+            <div class="px-8 pb-8">
+                <audio id="audio-player" controls autoplay preload="auto" class="w-full" style="border-radius:12px;height:44px;">
+                    <source src="{{ channel.url|e }}" type="audio/mpeg">
+                    <source src="{{ channel.url|e }}" type="audio/aac">
+                    <source src="{{ channel.url|e }}" type="audio/ogg">
+                    <source src="{{ channel.url|e }}" type="application/x-mpegURL">
+                </audio>
+                <!-- Slider volume -->
+                <div class="mt-4 flex items-center gap-3">
+                    <span class="text-white/60 text-xl">🔇</span>
+                    <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="1"
+                           class="vol-slider flex-1"
+                           oninput="var a=document.getElementById('audio-player');if(a){a.volume=parseFloat(this.value);}">
+                    <span class="text-white/60 text-xl">🔊</span>
+                </div>
+                <div class="flex justify-center gap-3 mt-3 flex-wrap">
+                    <button onclick="toggleMute()" id="btn-mute" class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-sm transition">🔊 Son</button>
+                    <button onclick="addToFavorites('{{ channel.id }}', 'iptv', event)" class="bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-400 px-4 py-2 rounded-xl text-sm transition">⭐ Favori</button>
+                    <button onclick="openMiniPlayer()" class="bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 px-4 py-2 rounded-xl text-sm transition">📌 Mini</button>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- Lecteur vidéo standard -->
+        <div class="bg-black rounded-2xl overflow-hidden shadow-2xl">
+            <div class="video-container" id="player-container">
+                <video id="video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls autoplay playsinline preload="auto"></video>
+                <!-- Contrôle volume flottant -->
+                <div class="vol-overlay">
+                    <button onclick="var v=document.querySelector('#player-container video');if(v){v.muted=!v.muted;this.textContent=v.muted?'🔇':'🔊';}" title="Muet">🔊</button>
+                    <input type="range" min="0" max="1" step="0.02" value="1"
+                           oninput="var v=document.querySelector('#player-container video');if(v)v.volume=parseFloat(this.value);"
+                           title="Volume">
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Informations de la chaîne -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow border border-gray-100 dark:border-gray-700">
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                    <h1 class="text-2xl font-bold mb-1">{{ channel.name }}</h1>
+                    <div class="flex flex-wrap gap-2 text-sm text-gray-500 mt-2">
+                        <span class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full"><i class="fas fa-tag mr-1"></i>{{ channel.category }}</span>
+                        <span class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full"><i class="fas fa-globe mr-1"></i>{{ channel.country }}</span>
+                        <span class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full"><i class="fas fa-language mr-1"></i>{{ channel.language|upper }}</span>
+                        <span class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full"><i class="fas fa-eye mr-1"></i>{{ channel.viewers }}</span>
+                        <span class="bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                            {% if channel.stream_type == 'youtube' %}▶️ YouTube
+                            {% elif channel.stream_type == 'dash' %}📡 DASH
+                            {% elif channel.stream_type == 'audio' %}📻 Audio
+                            {% elif channel.stream_type == 'mp4' %}🎬 MP4
+                            {% elif channel.stream_type == 'rtmp' %}⚡ RTMP
+                            {% else %}📺 HLS{% endif %}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-3">
+                        <i class="fas fa-info-circle mr-1"></i>Source: iptv-org · Dernier accès: {{ channel.last_seen.strftime('%d/%m/%Y %H:%M') if channel.last_seen else 'N/A' }}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="bg-red-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 live-badge">
+                        <i class="fas fa-circle text-xs"></i> EN DIRECT
+                    </span>
+                    <button onclick="addToFavorites('{{ channel.id }}', 'iptv', event)" class="text-yellow-400 hover:text-yellow-500 transition text-xl">
+                        <i class="far fa-star"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Boutons d'action EPG -->
+            <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+                <button onclick="addToFavorites('{{ channel.id }}', 'iptv', event)"
+                    class="flex items-center gap-2 bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-xl text-sm font-medium transition">
+                    ⭐ Ajouter aux favoris
+                </button>
+                <button id="btn-remind" onclick="toggleEPGReminder(this)"
+                    data-channel="{{ channel.name }}" data-country="{{ channel.country }}"
+                    class="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 text-blue-700 dark:text-blue-400 px-4 py-2 rounded-xl text-sm font-medium transition">
+                    🔔 Me rappeler
+                </button>
+                {% if channel.stream_type in ['hls','mp4','dash'] %}
+                <button onclick="downloadStream('{{ channel.url|e }}', '{{ channel.name|e }}')"
+                    class="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 text-green-700 dark:text-green-400 px-4 py-2 rounded-xl text-sm font-medium transition">
+                    ⬇ Enregistrer le flux
+                </button>
+                {% endif %}
+                <a href="/events?country={{ channel.country }}"
+                    class="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 text-purple-700 dark:text-purple-400 px-4 py-2 rounded-xl text-sm font-medium transition">
+                    📅 Programmes {{ channel.country }}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chaînes similaires -->
+    <div class="lg:col-span-1">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow border border-gray-100 dark:border-gray-700 sticky top-20">
+            <h3 class="font-bold mb-4 text-lg">Chaînes similaires</h3>
+            <div class="space-y-2 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {% for rec in recommendations %}
+                <a href="/watch/iptv/{{ rec.id }}" class="flex items-center space-x-3 p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition">
+                    <div class="w-12 h-12 bg-gray-100 dark:bg-gray-600 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {% if rec.logo %}
+                        <img src="{{ rec.logo }}" class="w-full h-full object-contain p-1" loading="lazy">
+                        {% else %}
+                        <i class="fas fa-tv text-gray-400"></i>
+                        {% endif %}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-medium text-sm truncate">{{ rec.name }}</h4>
+                        <p class="text-xs text-gray-400"><i class="fas fa-eye mr-1"></i>{{ rec.viewers }}</p>
+                    </div>
+                </a>
+                {% else %}
+                <p class="text-sm text-gray-400 text-center py-4">Aucune chaîne similaire</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script du lecteur universel multi-format -->
+<script>
+(function() {
+    var streamUrl  = '{{ channel.url|e }}';
+    var streamType = '{{ channel.stream_type }}';
+    var youtubeData = {{ youtube_data|tojson|safe if youtube_data else 'null' }};
+    var proxyUrl   = '/proxy/stream?url=' + encodeURIComponent(streamUrl);
+    var attempt    = 0;
+    var player;
+
+    /* ── Utilitaires ─────────────────────────────── */
+    function showError() {
+        var c = document.getElementById('player-container');
+        if (!c) return;
+        c.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;color:#fff;background:#111;border-radius:1rem;padding:2rem;gap:1rem;">'
+            + '<div style="font-size:3rem;">📡</div>'
+            + '<p style="font-weight:700;font-size:1.1rem;">Flux indisponible</p>'
+            + '<p style="font-size:.8rem;color:#999;text-align:center;max-width:280px;">Ce flux est peut-être hors ligne, géo-bloqué ou dans un format non supporté.</p>'
+            + '<div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">'
+            + '<button onclick="location.reload()" style="background:#2563eb;color:#fff;border:0;padding:.5rem 1.25rem;border-radius:.75rem;cursor:pointer;">🔄 Réessayer</button>'
+            + '<a href="/" style="background:#dc2626;color:#fff;text-decoration:none;padding:.5rem 1.25rem;border-radius:.75rem;">← Chaînes</a>'
+            + '</div></div>';
+    }
+
+    /* ── Tentative suivante ──────────────────────── */
+    function nextAttempt() {
+        attempt++;
+        if (attempt === 1) { tryHlsJs(proxyUrl); return; }
+        showError();
+    }
+
+    /* ── HLS.js natif (sans Video.js) ───────────── */
+    function tryHlsJs(url) {
+        var video = document.querySelector('#player-container video') || document.querySelector('video');
+        if (!video) { video = document.createElement('video'); video.controls = true; video.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;background:#000;'; var c = document.getElementById('player-container'); if (c) { c.innerHTML=''; c.appendChild(video); } }
+        if (window.Hls && Hls.isSupported()) {
+            var hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play().catch(function(){}); });
+            hls.on(Hls.Events.ERROR, function(e, d) { if (d.fatal) { hls.destroy(); nextAttempt(); } });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+            video.play().catch(function() { nextAttempt(); });
+        } else {
+            nextAttempt();
+        }
+    }
+
+    /* ── Video.js (init principale) ─────────────── */
+    function initVideoJs() {
+        player = videojs('video-player', {
+            controls: true, autoplay: true, preload: 'auto', fluid: true,
+            techOrder: ['html5'],
+            html5: {
+                vhs: { overrideNative: !videojs.browser.IS_SAFARI, enableLowInitialPlaylist: true },
+                nativeVideoTracks: false, nativeAudioTracks: false, nativeTextTracks: false
+            }
+        });
+
+        function loadSrc(url, type) {
+            player.src({ src: url, type: type });
+            player.load();
+        }
+
+        if (streamType === 'youtube' && youtubeData) {
+            if (youtubeData.embed_url || youtubeData.type === 'embed') {
+                var iframe = document.createElement('iframe');
+                iframe.src = youtubeData.embed_url || 'https://www.youtube.com/embed/' + youtubeData.video_id + '?autoplay=1';
+                iframe.allow = 'autoplay; encrypted-media; fullscreen'; iframe.allowFullscreen = true;
+                iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:0;';
+                var c2 = document.getElementById('player-container'); if (c2) { c2.innerHTML=''; c2.appendChild(iframe); }
+                return;
+            }
+            loadSrc(youtubeData.url || streamUrl, 'application/x-mpegURL');
+        } else if (streamType === 'dash') {
+            loadSrc(streamUrl, 'application/dash+xml');
+        } else if (streamType === 'mp4') {
+            loadSrc(streamUrl, 'video/mp4');
+        } else if (streamType === 'audio') {
+            loadSrc(streamUrl, 'audio/mpeg');
+        } else {
+            loadSrc(streamUrl, 'application/x-mpegURL');
+        }
+
+        player.on('error', function() {
+            console.warn('Video.js error attempt=' + attempt + ' url=' + streamUrl);
+            player.off('error');
+            if (attempt === 0) {
+                // Tenter le proxy avec Video.js
+                attempt = 1;
+                loadSrc(proxyUrl, 'application/x-mpegURL');
+                player.on('error', function() {
+                    player.off('error');
+                    player.dispose();
+                    // Fallback HLS.js pur
+                    tryHlsJs(proxyUrl);
+                });
+            } else {
+                player.dispose();
+                tryHlsJs(proxyUrl);
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initVideoJs);
+    } else {
+        initVideoJs();
+    }
+})();
+</script>
+{% endblock %}
+
+{% block scripts %}
+<style>
+@keyframes audioPulse { 0%,100%{transform:scale(1);opacity:.7} 50%{transform:scale(1.15);opacity:1} }
+@keyframes audioSpin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.vol-slider { -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:3px; background:rgba(255,255,255,.2); outline:none; cursor:pointer; }
+.vol-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:#e63946; cursor:pointer; }
+</style>
+<script>
+(function() {
+    var streamType = '{{ channel.stream_type }}';
+    var streamUrl  = '{{ channel.url|e }}';
+    var proxyAudioUrl = '/proxy/audio?url=' + encodeURIComponent(streamUrl);
+    var proxyHlsUrl   = '/proxy/stream?url=' + encodeURIComponent(streamUrl);
+    var youtubeData = {{ youtube_data|tojson|safe if youtube_data else 'null' }};
+
+    /* ════════════════════ AUDIO ════════════════════ */
+    if (streamType === 'audio') {
+        function initAudio() {
+            var audio   = document.getElementById('audio-player');
+            var artwork = document.getElementById('audio-artwork');
+            var pulse   = document.getElementById('pulse-ring');
+            var canvas  = document.getElementById('audio-visualizer');
+            var volSlider = document.getElementById('vol-slider');
+            if (!audio) return;
+
+            // Contrôle volume via slider
+            if (volSlider) {
+                volSlider.value = audio.volume;
+                volSlider.addEventListener('input', function() { audio.volume = parseFloat(this.value); });
+                audio.addEventListener('volumechange', function() { if (volSlider) volSlider.value = audio.volume; });
+            }
+
+            audio.addEventListener('play', function() {
+                if (artwork) artwork.style.animation = 'audioSpin 4s linear infinite';
+                if (pulse)   pulse.classList.remove('hidden');
+                startVisualizer(audio, canvas);
+            });
+            audio.addEventListener('pause', function() {
+                if (artwork) artwork.style.animation = '';
+                if (pulse)   pulse.classList.add('hidden');
+            });
+
+            var tried = 0;
+            audio.addEventListener('error', function() {
+                tried++;
+                if (tried === 1)      { audio.src = proxyAudioUrl; audio.load(); audio.play().catch(function(){}); }
+                else if (tried === 2) { audio.src = proxyHlsUrl;   audio.load(); audio.play().catch(function(){}); }
+            });
+
+            // Visualiseur Web Audio
+            function startVisualizer(audioEl, cv) {
+                if (!cv || !window.AudioContext && !window.webkitAudioContext) return;
+                try {
+                    var actx = new (window.AudioContext || window.webkitAudioContext)();
+                    var src  = actx.createMediaElementSource(audioEl);
+                    var anal = actx.createAnalyser(); anal.fftSize = 256;
+                    src.connect(anal); anal.connect(actx.destination);
+                    var buf  = new Uint8Array(anal.frequencyBinCount);
+                    var cCtx = cv.getContext('2d'); var W=cv.width, H=cv.height;
+                    (function draw() {
+                        requestAnimationFrame(draw); anal.getByteFrequencyData(buf);
+                        cCtx.clearRect(0,0,W,H);
+                        var bw = W / buf.length;
+                        for (var i=0; i<buf.length; i++) {
+                            var v = buf[i]/255;
+                            var h = v * H;
+                            var g = cCtx.createLinearGradient(0, H-h, 0, H);
+                            g.addColorStop(0, 'rgba(230,57,70,' + (0.5+v*0.5) + ')');
+                            g.addColorStop(1, 'rgba(244,162,97,0.8)');
+                            cCtx.fillStyle = g;
+                            cCtx.fillRect(i*bw, H-h, bw-1, h);
+                        }
+                    })();
+                } catch(e) {}
+            }
+
+            window.changeVolume = function(d) {
+                if (!audio) return;
+                audio.volume = Math.max(0, Math.min(1, audio.volume + d));
+                showNotification('Volume : ' + Math.round(audio.volume * 100) + '%', 'info');
+            };
+            window.toggleMute = function() {
+                if (!audio) return;
+                audio.muted = !audio.muted;
+                var b = document.getElementById('btn-mute');
+                if (b) b.innerHTML = audio.muted ? '🔇 Muet' : '🔊 Son';
+                showNotification(audio.muted ? 'Son coupé' : 'Son activé', 'info');
+            };
+            window.openMiniPlayer = function() {
+                if (window.livewatchMiniPlayer) window.livewatchMiniPlayer(streamUrl, '{{ channel.name|e }}', '{{ channel.logo|e }}');
+            };
+        }
+        if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initAudio); }
+        else { initAudio(); }
+
+    /* ════════════════════ VIDÉO ════════════════════ */
+    } else {
+        var attempt = 0;
+        var player;
+
+        function showPlayerError() {
+            var c = document.getElementById('player-container');
+            if (!c) return;
+            c.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:240px;color:#fff;background:linear-gradient(135deg,#111,#1a1a2e);border-radius:1rem;padding:2rem;gap:1rem;text-align:center;">'
+                + '<div style="font-size:3.5rem;">📡</div>'
+                + '<p style="font-weight:700;font-size:1.1rem;">Flux indisponible</p>'
+                + '<p style="font-size:.8rem;color:#aaa;max-width:300px;">Ce flux est peut-être hors ligne, géo-bloqué ou dans un format non supporté.</p>'
+                + '<div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">'
+                + '<button onclick="location.reload()" style="background:#2563eb;color:#fff;border:0;padding:.6rem 1.4rem;border-radius:.75rem;cursor:pointer;font-size:.9rem;">🔄 Réessayer</button>'
+                + '<a href="/" style="background:#dc2626;color:#fff;text-decoration:none;padding:.6rem 1.4rem;border-radius:.75rem;font-size:.9rem;">← Autres chaînes</a>'
+                + '</div></div>';
+        }
+
+        /* Détection du format réel depuis l'URL */
+        function detectType(url) {
+            var u = (url || '').split('?')[0].toLowerCase();
+            if (u.endsWith('.m3u8') || u.endsWith('.m3u'))  return 'hls';
+            if (u.endsWith('.mpd'))                          return 'dash';
+            if (u.endsWith('.mp4') || u.endsWith('.m4v'))    return 'mp4';
+            if (u.endsWith('.ts')  || u.endsWith('.mts'))    return 'ts';
+            if (u.endsWith('.mp3') || u.endsWith('.aac') || u.endsWith('.ogg')) return 'audio';
+            if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+            return streamType || 'hls'; // fallback sur le type déclaré
+        }
+
+        /* Créer un <video> nu dans player-container */
+        function makeRawVideo() {
+            var c = document.getElementById('player-container');
+            if (!c) return null;
+            c.innerHTML = '';
+            var v = document.createElement('video');
+            v.controls = true; v.autoplay = true; v.playsInline = true;
+            v.style.cssText = 'width:100%;height:100%;position:absolute;top:0;left:0;background:#000;';
+            c.appendChild(v);
+            return v;
+        }
+
+        /* Chaîne de fallback : Video.js → HLS.js → mpegts.js → natif → erreur */
+        var FALLBACKS = [];
+        (function buildFallbacks() {
+            var realType = detectType(streamUrl);
+
+            if (streamType === 'youtube' && youtubeData) {
+                FALLBACKS.push({ fn: tryYoutube });
+                return;
+            }
+            // Direct Video.js
+            FALLBACKS.push({ fn: function(){ tryVideoJs(streamUrl, realType); } });
+            // Proxy Video.js
+            FALLBACKS.push({ fn: function(){ tryVideoJs(proxyHlsUrl, 'hls'); } });
+            // HLS.js natif direct
+            if (realType === 'hls' || realType === 'ts') {
+                FALLBACKS.push({ fn: function(){ tryHlsJs(streamUrl); } });
+                FALLBACKS.push({ fn: function(){ tryHlsJs(proxyHlsUrl); } });
+            }
+            // mpegts.js pour TS/FLV
+            if (realType === 'ts' || realType === 'hls') {
+                FALLBACKS.push({ fn: function(){ tryMpegts(streamUrl); } });
+                FALLBACKS.push({ fn: function(){ tryMpegts(proxyHlsUrl); } });
+            }
+            // DASH.js direct
+            if (realType === 'dash') {
+                FALLBACKS.push({ fn: function(){ tryDash(streamUrl); } });
+                FALLBACKS.push({ fn: function(){ tryDash(proxyHlsUrl); } });
+            }
+            // Natif navigateur (MP4, etc.)
+            FALLBACKS.push({ fn: function(){ tryNative(streamUrl); } });
+            FALLBACKS.push({ fn: function(){ tryNative(proxyHlsUrl); } });
+            // Tout échoué
+            FALLBACKS.push({ fn: showPlayerError });
+        })();
+
+        function nextFallback() {
+            if (FALLBACKS.length === 0) { showPlayerError(); return; }
+            var f = FALLBACKS.shift();
+            try { f.fn(); } catch(e) { console.warn('Fallback error:', e); nextFallback(); }
+        }
+
+        /* YouTube */
+        function tryYoutube() {
+            if (youtubeData && (youtubeData.embed_url || youtubeData.type === 'embed')) {
+                var iframe = document.createElement('iframe');
+                iframe.src = youtubeData.embed_url || 'https://www.youtube.com/embed/' + youtubeData.video_id + '?autoplay=1';
+                iframe.allow = 'autoplay; encrypted-media; fullscreen'; iframe.allowFullscreen = true;
+                iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:0;';
+                var c2 = document.getElementById('player-container'); if (c2) { c2.innerHTML=''; c2.appendChild(iframe); }
+            } else {
+                tryVideoJs(youtubeData ? (youtubeData.url || streamUrl) : streamUrl, 'hls');
+            }
+        }
+
+        /* Video.js */
+        function tryVideoJs(url, type) {
+            if (player) { try { player.dispose(); } catch(e){} player = null; }
+            var c = document.getElementById('player-container');
+            if (!c) { nextFallback(); return; }
+            // Restaurer l'élément video si Video.js l'a supprimé
+            if (!document.getElementById('video-player')) {
+                c.innerHTML = '<video id="video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls autoplay playsinline preload="auto" style="width:100%;height:100%;position:absolute;top:0;left:0;"></video>';
+            }
+            try {
+                player = videojs('video-player', {
+                    controls:true, autoplay:true, preload:'auto', fluid:true,
+                    techOrder:['html5'],
+                    html5:{ vhs:{ overrideNative:true, enableLowInitialPlaylist:true, allowSeeksWithinUnsafeLiveWindow:true },
+                             nativeVideoTracks:false, nativeAudioTracks:false, nativeTextTracks:false }
+                });
+                var mimeMap = { hls:'application/x-mpegURL', dash:'application/dash+xml', mp4:'video/mp4',
+                                mp3:'audio/mpeg', aac:'audio/aac', ts:'video/mp2t', audio:'audio/mpeg' };
+                player.src({ src: url, type: mimeMap[type] || 'application/x-mpegURL' });
+                player.load();
+                player.play().catch(function(){});
+                player.one('error', function() {
+                    console.warn('Video.js error, next fallback');
+                    try { player.dispose(); } catch(e){} player = null;
+                    nextFallback();
+                });
+            } catch(e) { nextFallback(); }
+        }
+
+        /* HLS.js natif */
+        function tryHlsJs(url) {
+            if (!window.Hls) { nextFallback(); return; }
+            if (!Hls.isSupported()) { nextFallback(); return; }
+            var video = makeRawVideo(); if (!video) { nextFallback(); return; }
+            var hls = new Hls({
+                enableWorker: true, lowLatencyMode: true, backBufferLength: 30,
+                maxBufferLength: 30, maxMaxBufferLength: 60,
+                fragLoadingMaxRetry: 4, manifestLoadingMaxRetry: 3
+            });
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play().catch(function(){}); });
+            hls.on(Hls.Events.ERROR, function(ev, d) {
+                if (d.fatal) { console.warn('HLS.js fatal', d.type); hls.destroy(); nextFallback(); }
+            });
+        }
+
+        /* mpegts.js pour TS et streams HTTP-FLV */
+        function tryMpegts(url) {
+            if (!window.mpegts || !mpegts.isSupported()) { nextFallback(); return; }
+            var video = makeRawVideo(); if (!video) { nextFallback(); return; }
+            try {
+                var mt = mpegts.createPlayer({
+                    type: url.includes('.ts') ? 'mpegts' : 'mse',
+                    url: url, isLive: true
+                });
+                mt.attachMediaElement(video);
+                mt.load();
+                mt.play().catch(function(){});
+                mt.on(mpegts.Events.ERROR, function() { mt.destroy(); nextFallback(); });
+            } catch(e) { nextFallback(); }
+        }
+
+        /* DASH.js */
+        function tryDash(url) {
+            if (!window.dashjs) { nextFallback(); return; }
+            var video = makeRawVideo(); if (!video) { nextFallback(); return; }
+            try {
+                var dash = dashjs.MediaPlayer().create();
+                dash.initialize(video, url, true);
+                dash.on(dashjs.MediaPlayer.events.ERROR, function() { dash.reset(); nextFallback(); });
+            } catch(e) { nextFallback(); }
+        }
+
+        /* Natif navigateur */
+        function tryNative(url) {
+            var video = makeRawVideo(); if (!video) { nextFallback(); return; }
+            video.src = url;
+            video.load();
+            video.play().catch(function(){});
+            video.addEventListener('error', function() { nextFallback(); }, { once: true });
+        }
+
+        /* Contrôles volume vidéo */
+        window.changeVolume = function(d) {
+            var v = document.querySelector('#player-container video');
+            if (v) { v.volume = Math.max(0, Math.min(1, v.volume + d)); showNotification('Volume : ' + Math.round(v.volume*100) + '%', 'info'); }
+            else if (player) { player.volume(Math.max(0, Math.min(1, player.volume() + d))); }
+        };
+        window.toggleMute = function() {
+            var v = document.querySelector('#player-container video');
+            if (v) { v.muted = !v.muted; showNotification(v.muted ? 'Son coupé' : 'Son activé', 'info'); }
+            else if (player) { player.muted(!player.muted()); }
+        };
+
+        // Démarrer la chaîne de fallback
+        if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', nextFallback); }
+        else { nextFallback(); }
+    }
+})();
+
+    // ── EPG reminder ────────────────────────────────────────────────────────
+    async function toggleEPGReminder(btn) {
+        if ('Notification' in window && Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+        try {
+            var r = await fetch('/api/events/upcoming');
+            var data = await r.json();
+            var allEvents = Object.values(data).flat();
+            var ch = btn.dataset.channel || '';
+            var ev = allEvents.find(function(e){ return e.channel && e.channel.toLowerCase().indexOf(ch.toLowerCase().split(' ')[0]) !== -1; });
+            if (!ev) { showNotification('Aucun programme prévu pour cette chaîne aujourd'hui', 'info'); return; }
+            var r2 = await fetch('/api/events/' + ev.id + '/remind', { method: 'POST', credentials: 'include' });
+            var d2 = await r2.json();
+            btn.innerHTML = d2.action === 'added' ? '🔔 Rappel activé ✅' : '🔔 Me rappeler';
+            showNotification(d2.action === 'added' ? 'Rappel activé !' : 'Rappel supprimé', d2.action === 'added' ? 'success' : 'info');
+        } catch(e) { showNotification('Erreur réseau', 'error'); }
+    }
+
+    function downloadStream(url, name) {
+        if (!url) { showNotification('URL introuvable', 'error'); return; }
+        var fd = new FormData();
+        fd.append('url', url);
+        fd.append('filename', (name||'stream').replace(/[^a-zA-Z0-9]/g,'_'));
+        fd.append('duration', '3600');
+        fetch('/api/record/start', { method:'POST', body:fd, credentials:'include' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){ showNotification(d.success ? '✅ Enregistrement lancé' : 'ℹ️ Utilisez VLC pour enregistrer', d.success ? 'success' : 'info'); })
+            .catch(function(){ showNotification('ℹ️ Utilisez VLC pour enregistrer ce flux', 'info'); });
+    }
+</script>
+{% endblock %}

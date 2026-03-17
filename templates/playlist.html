@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{{ playlist.display_name }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="/" class="inline-flex items-center gap-2 text-red-600 hover:text-red-700 transition mb-4 text-sm font-medium">
+        <i class="fas fa-arrow-left"></i> Retour à l'accueil
+    </a>
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+            <h1 class="text-3xl font-bold">{{ playlist.display_name }}</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-1">
+                {{ channels|length }} chaînes · Type: 
+                <span class="capitalize">{{ playlist.playlist_type }}</span>
+                {% if playlist.country and playlist.country != 'INT' %}
+                · {{ playlist.country }}
+                {% endif %}
+            </p>
+        </div>
+        {% if playlist.last_sync %}
+        <span class="text-sm text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-full">
+            <i class="fas fa-sync-alt mr-1"></i>MAJ : {{ playlist.last_sync.strftime('%d/%m/%Y %H:%M') }}
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+    {% for channel in channels %}
+    <a href="/watch/iptv/{{ channel.id }}" class="stream-card bg-white dark:bg-gray-800 rounded-xl overflow-hidden hover:shadow-xl border border-gray-100 dark:border-gray-700">
+        <div class="relative h-20 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            {% if channel.logo %}
+            <img src="{{ channel.logo }}" alt="{{ channel.name }}" class="h-full w-full object-contain p-2" loading="lazy">
+            {% else %}
+            <i class="fas fa-tv text-3xl text-gray-400"></i>
+            {% endif %}
+            <span class="absolute top-1 left-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded live-badge">LIVE</span>
+            {% if channel.stream_type == 'youtube' %}
+            <span class="absolute top-1 right-1 bg-red-700 text-white text-xs px-1.5 py-0.5 rounded">▶️</span>
+            {% endif %}
+        </div>
+        <div class="p-2.5">
+            <h3 class="font-semibold text-xs truncate">{{ channel.name }}</h3>
+            <div class="flex items-center justify-between mt-1">
+                <span class="text-xs text-gray-400">{{ channel.country }}</span>
+                <button onclick="addToFavorites('{{ channel.id }}', 'iptv', event)" class="text-yellow-400 hover:text-yellow-500 transition">
+                    <i class="far fa-star text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </a>
+    {% else %}
+    <div class="col-span-full text-center py-16 text-gray-400">
+        <i class="fas fa-tv text-5xl mb-4 block opacity-20"></i>
+        <p>Aucune chaîne dans cette playlist.</p>
+        <a href="/admin/dashboard" class="text-red-500 hover:underline mt-2 inline-block">Lancer une synchronisation</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
