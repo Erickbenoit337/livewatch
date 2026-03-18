@@ -1888,7 +1888,8 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(pw: str) -> str:
-    return pwd_context.hash(pw)
+    # bcrypt limite à 72 bytes — tronquer pour éviter l'erreur
+    return pwd_context.hash(pw.encode("utf-8")[:72].decode("utf-8", errors="ignore"))
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -2453,6 +2454,11 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 # ==================== ROUTES PRINCIPALES ====================
+
+@app.head("/")
+async def home_head():
+    """Health check HEAD pour Render"""
+    return Response(status_code=200)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
