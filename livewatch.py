@@ -100,8 +100,8 @@ except ImportError:
 # ==================== CONFIGURATION AMÉLIORÉE ====================
 
 class Settings:
-    APP_NAME = "Livewatch"
-    APP_VERSION = "7.0 ULTIMATE"
+    APP_NAME = "livewatch"
+    APP_VERSION = "1.0 ULTIMATE"
     APP_DESCRIPTION = "Plateforme de streaming ultime — TV, Sports, IPTV Monde (pays/régions/villes), YouTube Live, Radio & Lives communautaires"
 
     # Sécurité
@@ -114,7 +114,7 @@ class Settings:
     # Peut aussi être fourni via la variable d'environnement DATABASE_URL
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
-        "postgresql://livewatch:livewatch@localhost:8000/livewatch"
+        "postgresql://postgres:Whitewalker92259%40@db.rnsifynwhlnkgtmbsjqu.supabase.co:5432/postgres"
     )
     # Alembic / psycopg2 veut "postgresql://" pas "postgres://" (Heroku legacy)
     if DATABASE_URL.startswith("postgres://"):
