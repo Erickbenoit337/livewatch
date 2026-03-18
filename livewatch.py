@@ -57,11 +57,12 @@ class UnicodeStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
 
+_log_file = '/tmp/livewatch.log' if not os.access('.', os.W_OK) else 'livewatch.log'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('livewatch.log', encoding='utf-8'),
+        logging.FileHandler(_log_file, encoding='utf-8'),
         UnicodeStreamHandler()
     ]
 )
@@ -459,8 +460,9 @@ class DailyVisitStats(Base):
 def _check_db_connection() -> bool:
     """Teste la connexion PostgreSQL au démarrage. Affiche un message clair si échec."""
     try:
+        from sqlalchemy import text
         with engine.connect() as conn:
-            conn.execute(func.now())
+            conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
         print("\n" + "="*70)
@@ -2154,15 +2156,6 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Erreur create_all : {e}")
         raise
 
-    # Création des dossiers
-    for directory in ["static", "templates", "static/uploads", "static/thumbnails", "static/recordings"]:
-        os.makedirs(directory, exist_ok=True)
-
-    if os.path.exists(settings.LOGO_PATH):
-        logger.info(f"✅ Logo trouvé: {settings.LOGO_PATH}")
-    else:
-        logger.warning(f"⚠️ Logo non trouvé: {settings.LOGO_PATH}")
-
     # Écriture des templates
     write_all_templates()
 
@@ -2257,7 +2250,10 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
-# Fichiers statiques
+# Fichiers statiques — s'assurer que le dossier existe avant le montage
+for _d in ["static", "templates", "static/uploads", "static/thumbnails", "static/recordings"]:
+    os.makedirs(_d, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -9301,6 +9297,7 @@ def write_all_templates():
 # ==================== DÉMARRAGE ====================
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8001))
     print("\n" + "=" * 80)
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
     print("=" * 80)
@@ -9313,7 +9310,6 @@ if __name__ == "__main__":
     print("=" * 80 + "\n")
 
     # Démarrer le serveur
-    port = int(os.environ.get("PORT", 8001))
     uvicorn.run(
         "livewatch:app",  
         host="0.0.0.0",   
