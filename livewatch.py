@@ -9315,7 +9315,7 @@ if __name__ == "__main__":
     # Démarrer le serveur
     port = int(os.environ.get("PORT", 8001))
     uvicorn.run(
-        "Livewatch:app",  
+        "livewatch:app",  
         host="0.0.0.0",   
         port=port,
         reload=False      
