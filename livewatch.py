@@ -354,6 +354,40 @@ class Comment(Base):
     stream  = relationship("UserStream", back_populates="comments")
     visitor = relationship("Visitor")
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id           = Column(PG_UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
+    stream_id    = Column(String(200), nullable=True, index=True)
+    username     = Column(String(100), nullable=False, default="Anonyme")
+    content      = Column(Text, nullable=False)
+    ip_address   = Column(String(50), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    is_deleted   = Column(Boolean, default=False)
+    is_auto_hidden = Column(Boolean, default=False)
+    report_count = Column(Integer, default=0)
+
+class LiveStream(Base):
+    __tablename__ = "live_streams"
+    id           = Column(PG_UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title        = Column(String(200), nullable=False)
+    description  = Column(Text, nullable=True)
+    category     = Column(String(50), nullable=True)
+    stream_key   = Column(String(100), unique=True, nullable=True)
+    stream_url   = Column(String(1000), nullable=True)
+    thumbnail    = Column(String(500), nullable=True)
+    viewer_count = Column(Integer, default=0)
+    like_count   = Column(Integer, default=0)
+    is_live      = Column(Boolean, default=False)
+    is_blocked   = Column(Boolean, default=False)
+    is_featured  = Column(Boolean, default=False)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    started_at   = Column(DateTime, nullable=True)
+    ended_at     = Column(DateTime, nullable=True)
+    visitor_id   = Column(String(100), nullable=True)
+    language     = Column(String(10), default="fr")
+    report_count = Column(Integer, default=0)
+    chat_enabled = Column(Boolean, default=True)
+
 class Report(Base):
     __tablename__ = "reports"
     id          = Column(PG_UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -376,6 +410,7 @@ class BlockedIP(Base):
     expires_at  = Column(DateTime, nullable=True)
     blocked_by  = Column(PG_UUID(as_uuid=False), ForeignKey("users.id"), nullable=True)
     is_permanent= Column(Boolean, default=False)
+    is_active   = Column(Boolean, default=True)   # ← AJOUTÉ
 
 class Favorite(Base):
     __tablename__ = "favorites"
@@ -2494,84 +2529,28 @@ def get_language(request: Request) -> str:
     return 'fr'
 
 def init_external_streams(db: Session):
-    """Initialise les flux externes dans la base de données"""
+    _VALID_COLS = {c.key for c in ExternalStream.__table__.columns}
     for stream_data in EXTERNAL_STREAMS:
-        try:
-            # Use proper attribute filtering
-            existing = db.query(ExternalStream).filter(
-                ExternalStream.title == stream_data.get("title", ""),
-                ExternalStream.url == stream_data.get("url", "")
-            ).first()
-            
-            if not existing:
-                # Create new stream
-                stream = ExternalStream(
-                    title=stream_data.get("title", "")[:200],
-                    url=stream_data.get("url", "")[:1000],
-                    stream_type=stream_data.get("stream_type", "hls"),
-                    category=stream_data.get("category", "general"),
-                    subcategory=stream_data.get("subcategory", ""),
-                    country=stream_data.get("country", ""),
-                    language=stream_data.get("language", "fr"),
-                    logo=stream_data.get("logo", ""),
-                    proxy_needed=stream_data.get("proxy_needed", False),
-                    quality=stream_data.get("quality", "HD"),
-                    is_active=True,
-                    created_at=datetime.utcnow()
-                )
-                db.add(stream)
-            elif existing.stream_type != stream_data.get("stream_type", "hls"):
-                # Update existing stream
-                existing.stream_type = stream_data.get("stream_type", "hls")
-                existing.proxy_needed = stream_data.get("proxy_needed", False)
-                existing.logo = stream_data.get("logo", existing.logo)
-                existing.category = stream_data.get("category", existing.category)
-                existing.country = stream_data.get("country", existing.country)
-                existing.quality = stream_data.get("quality", existing.quality)
-        except Exception as e:
-            logger.error(f"Erreur initialisation stream {stream_data.get('title', 'unknown')}: {e}")
-            continue
-    
-    try:
-        db.commit()
-        logger.info(f"✅ {len(EXTERNAL_STREAMS)} flux externes initialisés")
-    except Exception as e:
-        logger.error(f"Erreur commit init_external_streams: {e}")
-        db.rollback()
+        safe_data = {k: v for k, v in stream_data.items() if k in _VALID_COLS}
+        existing = db.query(ExternalStream).filter(
+            ExternalStream.title == safe_data.get("title"),
+            ExternalStream.url   == safe_data.get("url")
+        ).first()
+        if not existing:
+            db.add(ExternalStream(**safe_data))
+        else:
+            existing.stream_type  = safe_data.get("stream_type", "hls")
+            existing.proxy_needed = safe_data.get("proxy_needed", False)
+    db.commit()
     
 def init_iptv_playlists(db: Session):
-    """Initialise les playlists IPTV dans la base de données"""
+    _VALID_COLS = {c.key for c in IPTVPlaylist.__table__.columns}
     for playlist_data in IPTV_PLAYLISTS:
-        try:
-            existing = db.query(IPTVPlaylist).filter(
-                IPTVPlaylist.name == playlist_data.get("name", "")
-            ).first()
-            
-            if not existing:
-                # Create new playlist
-                playlist = IPTVPlaylist(
-                    name=playlist_data.get("name", ""),
-                    display_name=playlist_data.get("display_name", playlist_data.get("name", "")),
-                    url=playlist_data.get("url", ""),
-                    channel_count=0,
-                    is_active=True,
-                    category=playlist_data.get("category", "iptv"),
-                    country=playlist_data.get("country", ""),
-                    playlist_type=playlist_data.get("playlist_type", "country"),
-                    sync_status="pending",
-                    created_at=datetime.utcnow()
-                )
-                db.add(playlist)
-        except Exception as e:
-            logger.error(f"Erreur initialisation playlist {playlist_data.get('name', 'unknown')}: {e}")
-            continue
-    
-    try:
-        db.commit()
-        logger.info(f"✅ {len(IPTV_PLAYLISTS)} playlists IPTV initialisées")
-    except Exception as e:
-        logger.error(f"Erreur commit init_iptv_playlists: {e}")
-        db.rollback()
+        safe_data = {k: v for k, v in playlist_data.items() if k in _VALID_COLS}
+        existing = db.query(IPTVPlaylist).filter(IPTVPlaylist.name == safe_data["name"]).first()
+        if not existing:
+            db.add(IPTVPlaylist(**safe_data))
+    db.commit()
 
 def require_admin(request: Request) -> dict:
     """Vérifie que l'utilisateur est administrateur"""
@@ -2875,9 +2854,18 @@ finally:
     cleanup_task.cancel()
     tracker_task.cancel()
     stats_task.cancel()
-    await proxy.close()
-    await yt_service.close()
-    await iptv_sync.close()
+    try:
+        await proxy.close()
+    except Exception:
+        pass
+    try:
+        await yt_service.close()
+    except Exception:
+        pass
+    try:
+        await iptv_sync.close()
+    except Exception:
+        pass
 
 # ==================== APPLICATION ====================
 
