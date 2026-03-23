@@ -2854,18 +2854,9 @@ finally:
     cleanup_task.cancel()
     tracker_task.cancel()
     stats_task.cancel()
-    try:
-        await proxy.close()
-    except Exception:
-        pass
-    try:
-        await yt_service.close()
-    except Exception:
-        pass
-    try:
-        await iptv_sync.close()
-    except Exception:
-        pass
+    await proxy.close()
+    await yt_service.close()
+    await iptv_sync.close()
 
 # ==================== APPLICATION ====================
 
