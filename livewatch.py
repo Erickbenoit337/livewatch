@@ -2426,10 +2426,21 @@ def get_db():
         db.close()
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Verify password with automatic truncation to 72 bytes"""
+    # Truncate to 72 bytes if necessary for bcrypt compatibility
+    if len(plain.encode('utf-8')) > 72:
+        while len(plain.encode('utf-8')) > 72:
+            plain = plain[:-1]
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(pw: str) -> str:
-    return pwd_context.hash(pw.encode("utf-8")[:72].decode("utf-8", errors="ignore"))
+    """Truncate password to 72 bytes for bcrypt compatibility"""
+    # Truncate to 72 bytes (bcrypt limitation)
+    if len(pw.encode('utf-8')) > 72:
+        # Truncate to 72 bytes while preserving UTF-8 characters
+        while len(pw.encode('utf-8')) > 72:
+            pw = pw[:-1]
+    return pwd_context.hash(pw)
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -2486,19 +2497,29 @@ def get_language(request: Request) -> str:
 def init_external_streams(db: Session):
     """Initialise les flux externes dans la base de données"""
     for stream_data in EXTERNAL_STREAMS:
+        # Fix: Use proper filtering instead of dictionary comparison
         existing = db.query(ExternalStream).filter(
             ExternalStream.title == stream_data["title"],
             ExternalStream.url == stream_data["url"]
         ).first()
         if not existing:
-            stream = ExternalStream(**stream_data)
-            db.add(stream)
+            # Create the stream with proper error handling
+            try:
+                stream = ExternalStream(**stream_data)
+                db.add(stream)
+            except Exception as e:
+                logger.error(f"Erreur création stream {stream_data.get('title')}: {e}")
+                continue
         elif not hasattr(existing, 'stream_type') or existing.stream_type != stream_data.get("stream_type", "hls"):
+            # Update only if needed
             existing.stream_type = stream_data.get("stream_type", "hls")
             existing.proxy_needed = stream_data.get("proxy_needed", False)
+            existing.logo = stream_data.get("logo", existing.logo)
+            existing.category = stream_data.get("category", existing.category)
+            existing.country = stream_data.get("country", existing.country)
     db.commit()
     logger.info(f"✅ {len(EXTERNAL_STREAMS)} flux externes initialisés")
-
+    
 def init_iptv_playlists(db: Session):
     """Initialise les playlists IPTV dans la base de données"""
     for playlist_data in IPTV_PLAYLISTS:
