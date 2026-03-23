@@ -2426,20 +2426,19 @@ def get_db():
         db.close()
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Verify password with automatic truncation to 72 bytes"""
-    # Truncate to 72 bytes if necessary for bcrypt compatibility
-    if len(plain.encode('utf-8')) > 72:
-        while len(plain.encode('utf-8')) > 72:
-            plain = plain[:-1]
+    """Verify password with bcrypt, truncating to 72 bytes if necessary"""
+    plain_bytes = plain.encode('utf-8')
+    if len(plain_bytes) > 72:
+        plain = plain_bytes[:72].decode('utf-8', errors='ignore')
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(pw: str) -> str:
-    """Truncate password to 72 bytes for bcrypt compatibility"""
-    # Truncate to 72 bytes (bcrypt limitation)
-    if len(pw.encode('utf-8')) > 72:
-        # Truncate to 72 bytes while preserving UTF-8 characters
-        while len(pw.encode('utf-8')) > 72:
-            pw = pw[:-1]
+    """Hash password with bcrypt, truncating to 72 bytes if necessary"""
+    # bcrypt has a 72-byte limit
+    pw_bytes = pw.encode('utf-8')
+    if len(pw_bytes) > 72:
+        # Truncate to 72 bytes while preserving UTF-8
+        pw = pw_bytes[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(pw)
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -2497,44 +2496,82 @@ def get_language(request: Request) -> str:
 def init_external_streams(db: Session):
     """Initialise les flux externes dans la base de données"""
     for stream_data in EXTERNAL_STREAMS:
-        # Fix: Use proper filtering instead of dictionary comparison
-        existing = db.query(ExternalStream).filter(
-            ExternalStream.title == stream_data["title"],
-            ExternalStream.url == stream_data["url"]
-        ).first()
-        if not existing:
-            # Create the stream with proper error handling
-            try:
-                stream = ExternalStream(**stream_data)
+        try:
+            # Use proper attribute filtering
+            existing = db.query(ExternalStream).filter(
+                ExternalStream.title == stream_data.get("title", ""),
+                ExternalStream.url == stream_data.get("url", "")
+            ).first()
+            
+            if not existing:
+                # Create new stream
+                stream = ExternalStream(
+                    title=stream_data.get("title", "")[:200],
+                    url=stream_data.get("url", "")[:1000],
+                    stream_type=stream_data.get("stream_type", "hls"),
+                    category=stream_data.get("category", "general"),
+                    subcategory=stream_data.get("subcategory", ""),
+                    country=stream_data.get("country", ""),
+                    language=stream_data.get("language", "fr"),
+                    logo=stream_data.get("logo", ""),
+                    proxy_needed=stream_data.get("proxy_needed", False),
+                    quality=stream_data.get("quality", "HD"),
+                    is_active=True,
+                    created_at=datetime.utcnow()
+                )
                 db.add(stream)
-            except Exception as e:
-                logger.error(f"Erreur création stream {stream_data.get('title')}: {e}")
-                continue
-        elif not hasattr(existing, 'stream_type') or existing.stream_type != stream_data.get("stream_type", "hls"):
-            # Update only if needed
-            existing.stream_type = stream_data.get("stream_type", "hls")
-            existing.proxy_needed = stream_data.get("proxy_needed", False)
-            existing.logo = stream_data.get("logo", existing.logo)
-            existing.category = stream_data.get("category", existing.category)
-            existing.country = stream_data.get("country", existing.country)
-    db.commit()
-    logger.info(f"✅ {len(EXTERNAL_STREAMS)} flux externes initialisés")
+            elif existing.stream_type != stream_data.get("stream_type", "hls"):
+                # Update existing stream
+                existing.stream_type = stream_data.get("stream_type", "hls")
+                existing.proxy_needed = stream_data.get("proxy_needed", False)
+                existing.logo = stream_data.get("logo", existing.logo)
+                existing.category = stream_data.get("category", existing.category)
+                existing.country = stream_data.get("country", existing.country)
+                existing.quality = stream_data.get("quality", existing.quality)
+        except Exception as e:
+            logger.error(f"Erreur initialisation stream {stream_data.get('title', 'unknown')}: {e}")
+            continue
+    
+    try:
+        db.commit()
+        logger.info(f"✅ {len(EXTERNAL_STREAMS)} flux externes initialisés")
+    except Exception as e:
+        logger.error(f"Erreur commit init_external_streams: {e}")
+        db.rollback()
     
 def init_iptv_playlists(db: Session):
     """Initialise les playlists IPTV dans la base de données"""
     for playlist_data in IPTV_PLAYLISTS:
-        existing = db.query(IPTVPlaylist).filter(IPTVPlaylist.name == playlist_data["name"]).first()
-        if not existing:
-            playlist = IPTVPlaylist(**playlist_data)
-            db.add(playlist)
-    db.commit()
-    logger.info(f"✅ {len(IPTV_PLAYLISTS)} playlists IPTV initialisées")
-
-    # Fusionner les pays supplémentaires
+        try:
+            existing = db.query(IPTVPlaylist).filter(
+                IPTVPlaylist.name == playlist_data.get("name", "")
+            ).first()
+            
+            if not existing:
+                # Create new playlist
+                playlist = IPTVPlaylist(
+                    name=playlist_data.get("name", ""),
+                    display_name=playlist_data.get("display_name", playlist_data.get("name", "")),
+                    url=playlist_data.get("url", ""),
+                    channel_count=0,
+                    is_active=True,
+                    category=playlist_data.get("category", "iptv"),
+                    country=playlist_data.get("country", ""),
+                    playlist_type=playlist_data.get("playlist_type", "country"),
+                    sync_status="pending",
+                    created_at=datetime.utcnow()
+                )
+                db.add(playlist)
+        except Exception as e:
+            logger.error(f"Erreur initialisation playlist {playlist_data.get('name', 'unknown')}: {e}")
+            continue
+    
     try:
-        _merge_extra_iptv_countries()
-    except NameError:
-        pass  # Fonction pas encore définie dans certaines versions
+        db.commit()
+        logger.info(f"✅ {len(IPTV_PLAYLISTS)} playlists IPTV initialisées")
+    except Exception as e:
+        logger.error(f"Erreur commit init_iptv_playlists: {e}")
+        db.rollback()
 
 def require_admin(request: Request) -> dict:
     """Vérifie que l'utilisateur est administrateur"""
@@ -2692,6 +2729,28 @@ async def _daily_stats_recorder():
 
 
 # ==================== LIFESPAN ====================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("=" * 70)
+    logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"🐘 PostgreSQL : {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'unknown'}")
+    logger.info("=" * 70)
+
+    # Test database connection with retry
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            with engine.connect() as conn:
+                from sqlalchemy import text
+                conn.execute(text("SELECT 1"))
+            logger.info("✅ PostgreSQL connecté")
+            break
+        except Exception as e:
+            if attempt == max_retries:
+                logger.critical(f"❌ Impossible de se connecter à PostgreSQL après {max_retries} tentatives: {e}")
+                raise
+            logger.warning(f"⏳ Tentative {attempt}/{max_retries} - Erreur: {e}")
+            await asyncio.sleep(2)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -2743,22 +2802,30 @@ async def lifespan(app: FastAPI):
     write_all_templates()
 
     # ── 3. Initialisation des données ──────────────────────────────────
-    db = SessionLocal()
-    try:
-        owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
-        if not owner:
-            owner = User(
-                username=settings.ADMIN_USERNAME,
-                email=settings.OWNER_ID,
-                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-                is_admin=True,
-                is_owner=True
-            )
-            db.add(owner)
-            logger.info("✅ Compte propriétaire créé")
-        else:
-            owner.is_owner = True
-            owner.is_admin = True
+    # In the lifespan function, replace the owner creation code:
+db = SessionLocal()
+try:
+    owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
+    if not owner:
+        # Truncate password if needed
+        admin_password = settings.ADMIN_PASSWORD
+        if len(admin_password.encode('utf-8')) > 72:
+            admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        
+        owner = User(
+            username=settings.ADMIN_USERNAME,
+            email=settings.OWNER_ID,
+            hashed_password=get_password_hash(admin_password),
+            is_admin=True,
+            is_owner=True,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(owner)
+        logger.info("✅ Compte propriétaire créé")
+    else:
+        owner.is_owner = True
+        owner.is_admin = True
 
         init_external_streams(db)
         init_iptv_playlists(db)
