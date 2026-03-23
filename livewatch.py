@@ -304,7 +304,7 @@ class IPTVPlaylist(Base):
     sync_error    = Column(Text, nullable=True)
     sync_status   = Column(String(20),  default="pending")
 
-    __table_args__ = (Index('idx_playlist_name', 'name'),)
+    __table_args__ = (Index('idx_playlist_name', 'name'), {})
 
 class UserStream(Base):
     __tablename__ = "user_streams"
