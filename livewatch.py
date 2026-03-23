@@ -114,7 +114,7 @@ class Settings:
     # Peut aussi être fourni via la variable d'environnement DATABASE_URL
     DATABASE_URL = os.getenv(
         "DATABASE_URL",
-        "postgresql://erickbenoit:0c2EuvXkzp4TTm8ztnVd7mH5JFuB36WQ@dpg-d70hvq4hg0os73ac7ptg-a/livewatch_db"
+        "postgresql://livewatch_917w_user:nuZUykwJTQY13eBexSgfwPd0bzIQv7wz@dpg-d6t6hpvgi27c73dfv6n0-a/livewatch_917w"
     )
     # Alembic / psycopg2 veut "postgresql://" pas "postgres://" (Heroku legacy)
     if DATABASE_URL.startswith("postgres://"):
