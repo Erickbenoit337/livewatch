@@ -2429,8 +2429,8 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(pw: str) -> str:
-    return pwd_context.hash(pw)
-
+    return pwd_context.hash(pw.encode("utf-8")[:72].decode("utf-8", errors="ignore"))
+    
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
@@ -7617,7 +7617,6 @@ def _track_visit(request: Request, db: Session, page: str = "/"):
         visitor = db.query(Visitor).filter(Visitor.visitor_id == visitor_id).first()
         if visitor:
             visitor.last_seen  = now
-            visitor.page_count = (visitor.page_count or 0) + 1
             visitor.last_page  = page[:200]
         else:
             visitor = Visitor(visitor_id=visitor_id, ip_address=client_ip, user_agent=request.headers.get("user-agent","")[:500], first_seen=now, last_seen=now, page_count=1, last_page=page[:200], theme="auto", preferred_language="fr", favorites="[]")
@@ -9764,7 +9763,7 @@ async def track_visitor_middleware(request: Request, call_next):
                     if visitor:
                         from datetime import datetime, timezone
                         visitor.last_seen = datetime.now(timezone.utc)
-                        visitor.page_views = (visitor.page_views or 0) + 1
+                        visitor.total_streams = (visitor.total_streams or 0)
                         _db.commit()
             except Exception:
                 pass
