@@ -2803,6 +2803,7 @@ async def lifespan(app: FastAPI):
 
     # ── 3. Initialisation des données ──────────────────────────────────
     # In the lifespan function, replace the owner creation code:
+# In the lifespan function, replace the owner creation code:
 db = SessionLocal()
 try:
     owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
@@ -2827,30 +2828,30 @@ try:
         owner.is_owner = True
         owner.is_admin = True
 
-        init_external_streams(db)
-        init_iptv_playlists(db)
+    # Ces appels doivent être à l'intérieur du try, mais après le bloc if/else
+    init_external_streams(db)
+    init_iptv_playlists(db)
 
-        # Nettoyage visiteurs expirés
-        expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
-        db.commit()
-        logger.info(f"✅ {expired} visiteurs expirés nettoyés")
+    # Nettoyage visiteurs expirés
+    expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
+    db.commit()
+    logger.info(f"✅ {expired} visiteurs expirés nettoyés")
 
-        # Nettoyage événements EPG terminés depuis > 10 minutes
-        cutoff = datetime.utcnow() - timedelta(minutes=10)
-        old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
-        db.commit()
-        if old_events:
-            logger.info(f"🗑️ {old_events} anciens événements EPG supprimés")
+    # Nettoyage événements EPG terminés depuis > 10 minutes
+    cutoff = datetime.utcnow() - timedelta(minutes=10)
+    old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
+    db.commit()
+    if old_events:
+        logger.info(f"🗑️ {old_events} anciens événements EPG supprimés")
 
-        # EPG lancé en arrière-plan (non bloquant)
-        # La sync IPTV démarre immédiatement sans attendre le parsing XML
-        logger.info("📅 SmartEPG : démarrage en arrière-plan (non bloquant)...")
+    # EPG lancé en arrière-plan (non bloquant)
+    logger.info("📅 SmartEPG : démarrage en arrière-plan (non bloquant)...")
 
-    except Exception as e:
-        logger.error(f"❌ Erreur initialisation DB : {e}")
-        db.rollback()
-    finally:
-        db.close()
+except Exception as e:
+    logger.error(f"❌ Erreur initialisation DB : {e}")
+    db.rollback()
+finally:
+    db.close()
 
     # ── 4. Tâches de fond — toutes démarrent en parallèle ──────────────────
     logger.info("🔄 Démarrage synchronisation IPTV...")
