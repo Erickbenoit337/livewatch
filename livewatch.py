@@ -185,11 +185,9 @@ engine = create_engine(
     max_overflow     = settings.DATABASE_MAX_OVERFLOW,
     pool_timeout     = settings.DATABASE_POOL_TIMEOUT,
     pool_recycle     = settings.DATABASE_POOL_RECYCLE,
-    pool_pre_ping    = True,   # vérifie la connexion avant chaque usage
-    echo             = False,  # passer à True pour déboguer les requêtes SQL
-    # Fix Python 3.14 + SQLAlchemy : désactive le cache de requêtes
-    # qui lève "cannot use 'tuple' as a dict key (unhashable type: 'dict')"
-    query_cache_size = 0,
+    pool_pre_ping    = True,
+    echo             = False,
+    query_cache_size = 0,  # Fix Python 3.14 + SQLAlchemy "unhashable type: dict"
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -2465,19 +2463,25 @@ def get_db():
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify password with bcrypt, truncating to 72 bytes if necessary"""
-    plain_bytes = plain.encode('utf-8')
-    if len(plain_bytes) > 72:
-        plain = plain_bytes[:72].decode('utf-8', errors='ignore')
-    return pwd_context.verify(plain, hashed)
+    try:
+        plain_bytes = plain.encode('utf-8')
+        if len(plain_bytes) > 72:
+            plain = plain_bytes[:72].decode('utf-8', errors='ignore')
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        return False
 
 def get_password_hash(pw: str) -> str:
     """Hash password with bcrypt, truncating to 72 bytes if necessary"""
-    # bcrypt has a 72-byte limit
-    pw_bytes = pw.encode('utf-8')
-    if len(pw_bytes) > 72:
-        # Truncate to 72 bytes while preserving UTF-8
-        pw = pw_bytes[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(pw)
+    try:
+        pw_bytes = pw.encode('utf-8')
+        if len(pw_bytes) > 72:
+            pw = pw_bytes[:72].decode('utf-8', errors='ignore')
+        return pwd_context.hash(pw)
+    except Exception as e:
+        logger.warning(f"Erreur bcrypt fallback sha256: {e}")
+        import hashlib
+        return "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -2715,29 +2719,6 @@ async def _daily_stats_recorder():
 async def lifespan(app: FastAPI):
     logger.info("=" * 70)
     logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"🐘 PostgreSQL : {settings.DATABASE_URL.split('@')[-1] if '@' in settings.DATABASE_URL else 'unknown'}")
-    logger.info("=" * 70)
-
-    # Test database connection with retry
-    max_retries = 5
-    for attempt in range(1, max_retries + 1):
-        try:
-            with engine.connect() as conn:
-                from sqlalchemy import text
-                conn.execute(text("SELECT 1"))
-            logger.info("✅ PostgreSQL connecté")
-            break
-        except Exception as e:
-            if attempt == max_retries:
-                logger.critical(f"❌ Impossible de se connecter à PostgreSQL après {max_retries} tentatives: {e}")
-                raise
-            logger.warning(f"⏳ Tentative {attempt}/{max_retries} - Erreur: {e}")
-            await asyncio.sleep(2)
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("=" * 70)
-    logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"🐘 PostgreSQL : {settings.DATABASE_URL.split('@')[-1]}")
     logger.info("=" * 70)
 
@@ -2784,65 +2765,56 @@ async def lifespan(app: FastAPI):
     write_all_templates()
 
     # ── 3. Initialisation des données ──────────────────────────────────
-    # In the lifespan function, replace the owner creation code:
-# In the lifespan function, replace the owner creation code:
-db = SessionLocal()
-try:
-    owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
-    if not owner:
-        # Truncate password if needed
-        admin_password = settings.ADMIN_PASSWORD
-        if len(admin_password.encode('utf-8')) > 72:
-            admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        
-        owner = User(
-            username=settings.ADMIN_USERNAME,
-            email=settings.OWNER_ID,
-            hashed_password=get_password_hash(admin_password),
-            is_admin=True,
-            is_owner=True,
-            is_active=True,
-            created_at=datetime.utcnow()
-        )
-        db.add(owner)
-        logger.info("✅ Compte propriétaire créé")
-    else:
-        owner.is_owner = True
-        owner.is_admin = True
+    db = SessionLocal()
+    try:
+        owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
+        if not owner:
+            admin_password = settings.ADMIN_PASSWORD
+            if len(admin_password.encode('utf-8')) > 72:
+                admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+            owner = User(
+                username=settings.ADMIN_USERNAME,
+                email=settings.OWNER_ID,
+                hashed_password=get_password_hash(admin_password),
+                is_admin=True,
+                is_owner=True,
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(owner)
+            logger.info("✅ Compte propriétaire créé")
+        else:
+            owner.is_owner = True
+            owner.is_admin = True
 
-    # Ces appels doivent être à l'intérieur du try, mais après le bloc if/else
-    init_external_streams(db)
-    init_iptv_playlists(db)
+        init_external_streams(db)
+        init_iptv_playlists(db)
 
-    # Nettoyage visiteurs expirés
-    expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
-    db.commit()
-    logger.info(f"✅ {expired} visiteurs expirés nettoyés")
+        expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
+        db.commit()
+        logger.info(f"✅ {expired} visiteurs expirés nettoyés")
 
-    # Nettoyage événements EPG terminés depuis > 10 minutes
-    cutoff = datetime.utcnow() - timedelta(minutes=10)
-    old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
-    db.commit()
-    if old_events:
-        logger.info(f"🗑️ {old_events} anciens événements EPG supprimés")
+        cutoff = datetime.utcnow() - timedelta(minutes=10)
+        old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
+        db.commit()
+        if old_events:
+            logger.info(f"🗑️ {old_events} anciens événements EPG supprimés")
 
-    # EPG lancé en arrière-plan (non bloquant)
-    logger.info("📅 SmartEPG : démarrage en arrière-plan (non bloquant)...")
+        logger.info("📅 SmartEPG : démarrage en arrière-plan (non bloquant)...")
 
-except Exception as e:
-    logger.error(f"❌ Erreur initialisation DB : {e}")
-    db.rollback()
-finally:
-    db.close()
+    except Exception as e:
+        logger.error(f"❌ Erreur initialisation DB : {e}")
+        db.rollback()
+    finally:
+        db.close()
 
-    # ── 4. Tâches de fond — toutes démarrent en parallèle ──────────────────
+    # ── 4. Tâches de fond ──────────────────────────────────────────────
     logger.info("🔄 Démarrage synchronisation IPTV...")
-    sync_task      = asyncio.create_task(iptv_sync.start_periodic_sync())
-    reminder_task  = asyncio.create_task(epg_service.check_reminders())
-    cleanup_task   = asyncio.create_task(_periodic_epg_cleanup())
-    tracker_task   = asyncio.create_task(active_tracker.start_broadcast_loop())
-    stats_task     = asyncio.create_task(_daily_stats_recorder())
-    # EPG auto-download DÉSACTIVÉ (v2.0) — géré manuellement depuis l'admin
+    sync_task     = asyncio.create_task(iptv_sync.start_periodic_sync())
+    reminder_task = asyncio.create_task(epg_service.check_reminders())
+    cleanup_task  = asyncio.create_task(_periodic_epg_cleanup())
+    tracker_task  = asyncio.create_task(active_tracker.start_broadcast_loop())
+    stats_task    = asyncio.create_task(_daily_stats_recorder())
     logger.info("✅ Services démarrés : IPTV sync + EPG cleanup + tracker + stats journalières")
 
     logger.info(f"🌐 http://localhost:8001")
@@ -2852,6 +2824,7 @@ finally:
 
     yield
 
+    # ── Shutdown ──────────────────────────────────────────────────────
     sync_task.cancel()
     reminder_task.cancel()
     cleanup_task.cancel()
@@ -3103,7 +3076,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.head("/")
 async def health_head():
-    """Health check HEAD pour Render"""
+    """Health check HEAD pour Render / load balancers"""
     return Response(status_code=200)
 
 @app.get("/", response_class=HTMLResponse)
@@ -3115,14 +3088,6 @@ async def home(
     db: Session = Depends(get_db)
 ):
     """Page d'accueil avec tous les contenus"""
-    try:
-        return await _home_inner(request, category, playlist, ptype, db)
-    except Exception as e:
-        import traceback
-        logger.error(f"Erreur route home: {e}\n{traceback.format_exc()}")
-        raise
-
-async def _home_inner(request, category, playlist, ptype, db):
     lang = get_language(request)
     visitor_id = get_visitor_id(request)
 
@@ -3167,26 +3132,27 @@ async def _home_inner(request, category, playlist, ptype, db):
             )
             if category and (category.startswith("iptv_") or category in CATEGORY_IPTV_KEYWORDS):
                 keywords = CATEGORY_IPTV_KEYWORDS.get(category, [category.replace("iptv_", "")])
-                if keywords:
+                if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
                     filters = [IPTVChannel.category.ilike(f"%{kw}%") for kw in keywords]
-                    channel_query = channel_query.filter(or_(*filters))
+                    if filters:
+                        channel_query = channel_query.filter(or_(*filters))
             iptv_channels = channel_query.order_by(IPTVChannel.name).limit(200).all()
     elif category and not category.startswith("iptv_"):
-        # Filtre catégorie thématique sans pays sélectionné → afficher les chaînes IPTV de cette catégorie
         keywords = CATEGORY_IPTV_KEYWORDS.get(category, [category])
-        if keywords:
+        if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
             filters = [IPTVChannel.category.ilike(f"%{kw}%") for kw in keywords]
-            iptv_channels = db.query(IPTVChannel).filter(
-                or_(*filters), IPTVChannel.is_active == True
-            ).order_by(desc(IPTVChannel.viewers)).limit(200).all()
+            if filters:
+                iptv_channels = db.query(IPTVChannel).filter(
+                    or_(*filters), IPTVChannel.is_active == True
+                ).order_by(desc(IPTVChannel.viewers)).limit(200).all()
     elif category and category.startswith("iptv_"):
-        # Catégorie IPTV spécifique sans pays
         keywords = CATEGORY_IPTV_KEYWORDS.get(category, [category.replace("iptv_", "")])
-        if keywords:
+        if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
             filters = [IPTVChannel.category.ilike(f"%{kw}%") for kw in keywords]
-            iptv_channels = db.query(IPTVChannel).filter(
-                or_(*filters), IPTVChannel.is_active == True
-            ).order_by(desc(IPTVChannel.viewers)).limit(200).all()
+            if filters:
+                iptv_channels = db.query(IPTVChannel).filter(
+                    or_(*filters), IPTVChannel.is_active == True
+                ).order_by(desc(IPTVChannel.viewers)).limit(200).all()
 
     # Statistiques par catégorie (ExternalStream + UserStream + IPTVChannel)
     categories_stats = []
@@ -3199,11 +3165,14 @@ async def _home_inner(request, category, playlist, ptype, db):
             categories_stats.append({**cat, "count": iptv_count})
             continue
 
-        if keywords:
+        if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
             filters = [IPTVChannel.category.ilike(f"%{kw}%") for kw in keywords]
-            iptv_count = db.query(IPTVChannel).filter(
-                or_(*filters), IPTVChannel.is_active == True
-            ).count()
+            if filters:
+                iptv_count = db.query(IPTVChannel).filter(
+                    or_(*filters), IPTVChannel.is_active == True
+                ).count()
+            else:
+                iptv_count = 0
         else:
             iptv_count = 0
 
@@ -9861,11 +9830,10 @@ async def track_visitor_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        import traceback
-        logger.error(f"Unhandled error on {path}: {e}\n{traceback.format_exc()}")
+        logger.error(f"Unhandled error on {path}: {e}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Erreur interne du serveur", "detail": str(e)[:200]}
+            content={"error": "Erreur interne du serveur", "detail": str(e)[:100]}
         )
 
     # Ajouter les headers de performance
