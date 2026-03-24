@@ -2849,6 +2849,21 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 # Fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+# ── Fix Python 3.14 + Jinja2 incompatibility ────────────────────────────
+# Jinja2's LRUCache builds cache keys as tuples that include a globals dict.
+# Python 3.14 raises TypeError: "cannot use 'tuple' as a dict key (unhashable type: 'dict')"
+# Fix: disable Jinja2 template bytecode cache entirely.
+try:
+    from jinja2 import Environment, FileSystemLoader
+    _env = Environment(
+        loader=FileSystemLoader("templates"),
+        autoescape=True,
+        cache_size=0,           # ← disables LRUCache completely
+        auto_reload=True,
+    )
+    templates.env = _env
+except Exception:
+    pass  # keep default if override fails
 
 # Middleware de sécurité
 @app.middleware("http")
