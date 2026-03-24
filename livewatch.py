@@ -2786,22 +2786,17 @@ async def lifespan(app: FastAPI):
         else:
             owner.is_owner = True
             owner.is_admin = True
-
         init_external_streams(db)
         init_iptv_playlists(db)
-
         expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
         db.commit()
         logger.info(f"✅ {expired} visiteurs expirés nettoyés")
-
         cutoff = datetime.utcnow() - timedelta(minutes=10)
         old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
         db.commit()
         if old_events:
             logger.info(f"🗑️ {old_events} anciens événements EPG supprimés")
-
         logger.info("📅 SmartEPG : démarrage en arrière-plan (non bloquant)...")
-
     except Exception as e:
         logger.error(f"❌ Erreur initialisation DB : {e}")
         db.rollback()
@@ -2816,7 +2811,6 @@ async def lifespan(app: FastAPI):
     tracker_task  = asyncio.create_task(active_tracker.start_broadcast_loop())
     stats_task    = asyncio.create_task(_daily_stats_recorder())
     logger.info("✅ Services démarrés : IPTV sync + EPG cleanup + tracker + stats journalières")
-
     logger.info(f"🌐 http://localhost:8001")
     logger.info(f"👤 Admin : {settings.OWNER_ID} / {settings.ADMIN_PASSWORD}")
     logger.info(f"📺 {len(EXTERNAL_STREAMS)} flux externes | 🌍 {len(IPTV_PLAYLISTS)} playlists IPTV")
@@ -3076,7 +3070,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.head("/")
 async def health_head():
-    """Health check HEAD pour Render / load balancers"""
+    """Health check HEAD pour Render"""
     return Response(status_code=200)
 
 @app.get("/", response_class=HTMLResponse)
@@ -9830,10 +9824,11 @@ async def track_visitor_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        logger.error(f"Unhandled error on {path}: {e}")
+        import traceback
+        logger.error(f"Unhandled error on {path}: {e}\n{traceback.format_exc()}")
         return JSONResponse(
             status_code=500,
-            content={"error": "Erreur interne du serveur", "detail": str(e)[:100]}
+            content={"error": "Erreur interne du serveur", "detail": str(e)[:200]}
         )
 
     # Ajouter les headers de performance
