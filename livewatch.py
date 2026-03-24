@@ -2463,25 +2463,19 @@ def get_db():
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify password with bcrypt, truncating to 72 bytes if necessary"""
-    try:
-        plain_bytes = plain.encode('utf-8')
-        if len(plain_bytes) > 72:
-            plain = plain_bytes[:72].decode('utf-8', errors='ignore')
-        return pwd_context.verify(plain, hashed)
-    except Exception:
-        return False
+    plain_bytes = plain.encode('utf-8')
+    if len(plain_bytes) > 72:
+        plain = plain_bytes[:72].decode('utf-8', errors='ignore')
+    return pwd_context.verify(plain, hashed)
 
 def get_password_hash(pw: str) -> str:
     """Hash password with bcrypt, truncating to 72 bytes if necessary"""
-    try:
-        pw_bytes = pw.encode('utf-8')
-        if len(pw_bytes) > 72:
-            pw = pw_bytes[:72].decode('utf-8', errors='ignore')
-        return pwd_context.hash(pw)
-    except Exception as e:
-        logger.warning(f"Erreur bcrypt fallback sha256: {e}")
-        import hashlib
-        return "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
+    # bcrypt has a 72-byte limit
+    pw_bytes = pw.encode('utf-8')
+    if len(pw_bytes) > 72:
+        # Truncate to 72 bytes while preserving UTF-8
+        pw = pw_bytes[:72].decode('utf-8', errors='ignore')
+    return pwd_context.hash(pw)
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -2765,6 +2759,7 @@ async def lifespan(app: FastAPI):
     write_all_templates()
 
     # ── 3. Initialisation des données ──────────────────────────────────
+        # ── 3. Initialisation des données ──────────────────────────────────
     db = SessionLocal()
     try:
         owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
@@ -9825,7 +9820,8 @@ async def track_visitor_middleware(request: Request, call_next):
         response = await call_next(request)
     except Exception as e:
         import traceback
-        logger.error(f"Unhandled error on {path}: {e}\n{traceback.format_exc()}")
+        tb = traceback.format_exc()
+        logger.error(f"Unhandled error on {path}: {e}\n{tb}")
         return JSONResponse(
             status_code=500,
             content={"error": "Erreur interne du serveur", "detail": str(e)[:200]}
