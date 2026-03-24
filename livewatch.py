@@ -187,7 +187,7 @@ engine = create_engine(
     pool_recycle     = settings.DATABASE_POOL_RECYCLE,
     pool_pre_ping    = True,
     echo             = False,
-    query_cache_size = 0,  # Fix Python 3.14 + SQLAlchemy "unhashable type: dict"
+    query_cache_size = 0,  # Fix Python 3.14 + SQLAlchemy cache bug
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -305,7 +305,7 @@ class IPTVPlaylist(Base):
     sync_error    = Column(Text, nullable=True)
     sync_status   = Column(String(20),  default="pending")
 
-    __table_args__ = (Index('idx_playlist_name', 'name'), )
+    __table_args__ = (Index('idx_playlist_name', 'name'), {})
 
 class UserStream(Base):
     __tablename__ = "user_streams"
@@ -2462,20 +2462,24 @@ def get_db():
         db.close()
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Verify password with bcrypt, truncating to 72 bytes if necessary"""
-    plain_bytes = plain.encode('utf-8')
-    if len(plain_bytes) > 72:
-        plain = plain_bytes[:72].decode('utf-8', errors='ignore')
-    return pwd_context.verify(plain, hashed)
+    try:
+        plain_bytes = plain.encode('utf-8')
+        if len(plain_bytes) > 72:
+            plain = plain_bytes[:72].decode('utf-8', errors='ignore')
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        return False
 
 def get_password_hash(pw: str) -> str:
-    """Hash password with bcrypt, truncating to 72 bytes if necessary"""
-    # bcrypt has a 72-byte limit
-    pw_bytes = pw.encode('utf-8')
-    if len(pw_bytes) > 72:
-        # Truncate to 72 bytes while preserving UTF-8
-        pw = pw_bytes[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(pw)
+    try:
+        pw_bytes = pw.encode('utf-8')
+        if len(pw_bytes) > 72:
+            pw = pw_bytes[:72].decode('utf-8', errors='ignore')
+        return pwd_context.hash(pw)
+    except Exception as e:
+        logger.warning(f"bcrypt error: {e}")
+        import hashlib
+        return "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -2759,7 +2763,6 @@ async def lifespan(app: FastAPI):
     write_all_templates()
 
     # ── 3. Initialisation des données ──────────────────────────────────
-        # ── 3. Initialisation des données ──────────────────────────────────
     db = SessionLocal()
     try:
         owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
@@ -3065,8 +3068,8 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.head("/")
 async def health_head():
-    """Health check HEAD pour Render"""
     return Response(status_code=200)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
@@ -9820,8 +9823,7 @@ async def track_visitor_middleware(request: Request, call_next):
         response = await call_next(request)
     except Exception as e:
         import traceback
-        tb = traceback.format_exc()
-        logger.error(f"Unhandled error on {path}: {e}\n{tb}")
+        logger.error(f"Unhandled error on {path}: {e}\n{traceback.format_exc()}")
         return JSONResponse(
             status_code=500,
             content={"error": "Erreur interne du serveur", "detail": str(e)[:200]}
