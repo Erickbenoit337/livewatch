@@ -3096,6 +3096,8 @@ async def health_head():
     return Response(status_code=200)
 
 
+# Dans la fonction home(), remplacez la section de traitement des playlists par :
+
 @app.get("/", response_class=HTMLResponse)
 async def home(
     request: Request,
@@ -3122,20 +3124,63 @@ async def home(
         ext_query = ext_query.filter(ExternalStream.category == category)
     external_streams = ext_query.order_by(desc(ExternalStream.viewers)).limit(60).all()
 
-    # Playlists IPTV
+    # Playlists IPTV - Convertir en dictionnaires pour le template
     playlists_all = db.query(IPTVPlaylist).filter(IPTVPlaylist.is_active == True)
     if ptype:
         playlists_all = playlists_all.filter(IPTVPlaylist.playlist_type == ptype)
     playlists_all = playlists_all.all()
 
-    # Grouper par type — trier les pays alphabétiquement par display_name
-    pl_countries = sorted(
-        [p for p in playlists_all if p.playlist_type == "country"],
-        key=lambda p: (p.display_name or '').split(' ', 1)[-1].strip().lower()
-    )
-    pl_subdivisions = []   # masqués du dashboard principal
-    pl_cities = []         # masqués du dashboard principal
-    pl_categories = [p for p in playlists_all if p.playlist_type == "category"]
+    # Convertir les objets SQLAlchemy en dictionnaires pour éviter les erreurs dans le template
+    pl_countries = []
+    for p in playlists_all:
+        if p.playlist_type == "country":
+            pl_countries.append({
+                "name": p.name,
+                "display_name": p.display_name or p.name,
+                "country": p.country or "",
+                "channel_count": p.channel_count or 0,
+                "playlist_type": p.playlist_type,
+                "last_sync": p.last_sync,
+                "url": f"/?playlist={p.name}"
+            })
+    
+    pl_categories = []
+    for p in playlists_all:
+        if p.playlist_type == "category":
+            pl_categories.append({
+                "name": p.name,
+                "display_name": p.display_name or p.name,
+                "channel_count": p.channel_count or 0,
+                "playlist_type": p.playlist_type,
+                "url": f"/?playlist={p.name}"
+            })
+    
+    pl_subdivisions = []
+    for p in playlists_all:
+        if p.playlist_type == "subdivision":
+            pl_subdivisions.append({
+                "name": p.name,
+                "display_name": p.display_name or p.name,
+                "country": p.country or "",
+                "channel_count": p.channel_count or 0,
+                "playlist_type": p.playlist_type,
+                "url": f"/?playlist={p.name}"
+            })
+    
+    pl_cities = []
+    for p in playlists_all:
+        if p.playlist_type == "city":
+            pl_cities.append({
+                "name": p.name,
+                "display_name": p.display_name or p.name,
+                "country": p.country or "",
+                "channel_count": p.channel_count or 0,
+                "playlist_type": p.playlist_type,
+                "url": f"/?playlist={p.name}"
+            })
+    
+    # Trier les pays alphabétiquement par display_name
+    pl_countries.sort(key=lambda p: (p["display_name"].split(' ', 1)[-1].strip().lower() if ' ' in p["display_name"] else p["display_name"].lower()))
 
     # Chaînes IPTV d'une playlist spécifique
     iptv_channels = []
@@ -3143,6 +3188,14 @@ async def home(
     if playlist:
         selected_playlist = db.query(IPTVPlaylist).filter(IPTVPlaylist.name == playlist).first()
         if selected_playlist:
+            # Convertir en dictionnaire pour le template
+            selected_playlist_dict = {
+                "name": selected_playlist.name,
+                "display_name": selected_playlist.display_name,
+                "country": selected_playlist.country or "",
+                "channel_count": selected_playlist.channel_count or 0,
+            }
+            
             channel_query = db.query(IPTVChannel).filter(
                 IPTVChannel.playlist_id == playlist,
                 IPTVChannel.is_active == True
@@ -3154,7 +3207,12 @@ async def home(
                     if filters:
                         channel_query = channel_query.filter(or_(*filters))
             iptv_channels = channel_query.order_by(IPTVChannel.name).limit(200).all()
-    elif category and not category.startswith("iptv_"):
+        else:
+            selected_playlist_dict = None
+    else:
+        selected_playlist_dict = None
+        
+    if category and not category.startswith("iptv_"):
         keywords = CATEGORY_IPTV_KEYWORDS.get(category, [category])
         if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
             filters = [IPTVChannel.category.ilike(f"%{kw}%") for kw in keywords]
@@ -3171,7 +3229,45 @@ async def home(
                     or_(*filters), IPTVChannel.is_active == True
                 ).order_by(desc(IPTVChannel.viewers)).limit(200).all()
 
-    # Statistiques par catégorie (ExternalStream + UserStream + IPTVChannel)
+    # Convertir les streams en dictionnaires pour le template
+    live_streams_dict = []
+    for s in live_streams:
+        live_streams_dict.append({
+            "id": s.id,
+            "title": s.title,
+            "category": s.category,
+            "viewer_count": s.viewer_count,
+            "like_count": s.like_count,
+            "thumbnail": s.thumbnail,
+            "is_live": s.is_live,
+        })
+    
+    external_streams_dict = []
+    for s in external_streams:
+        external_streams_dict.append({
+            "id": s.id,
+            "title": s.title,
+            "category": s.category,
+            "country": s.country or "",
+            "logo": s.logo or "",
+            "stream_type": s.stream_type,
+            "quality": s.quality or "",
+            "is_active": s.is_active,
+        })
+    
+    iptv_channels_dict = []
+    for ch in iptv_channels:
+        iptv_channels_dict.append({
+            "id": ch.id,
+            "name": ch.name,
+            "logo": ch.logo or "",
+            "country": ch.country or "",
+            "category": ch.category or "",
+            "stream_type": ch.stream_type or "hls",
+            "playlist_id": ch.playlist_id,
+        })
+    
+    # Statistiques par catégorie
     categories_stats = []
     for cat in CATEGORIES:
         cat_id = cat["id"]
@@ -3179,7 +3275,12 @@ async def home(
 
         if cat_id == "iptv":
             iptv_count = db.query(IPTVChannel).filter(IPTVChannel.is_active == True).count()
-            categories_stats.append({**cat, "count": iptv_count})
+            categories_stats.append({
+                "id": cat["id"],
+                "name": cat["name"],
+                "icon": cat["icon"],
+                "count": iptv_count
+            })
             continue
 
         if keywords and isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
@@ -3201,19 +3302,78 @@ async def home(
             UserStream.is_live == True,
             UserStream.is_blocked == False
         ).count()
-        categories_stats.append({**cat, "count": ext_count + user_count + iptv_count})
+        categories_stats.append({
+            "id": cat["id"],
+            "name": cat["name"],
+            "icon": cat["icon"],
+            "count": ext_count + user_count + iptv_count
+        })
 
     # Chaînes radio pour le mini-player
     radio_streams = db.query(ExternalStream).filter(
         ExternalStream.is_active == True,
         ExternalStream.stream_type == "audio"
     ).limit(24).all()
+    
+    radio_streams_dict = []
+    for s in radio_streams:
+        radio_streams_dict.append({
+            "id": s.id,
+            "title": s.title,
+            "logo": s.logo or "",
+        })
 
-    # Chaînes mises en avant (news + sports actives)
+    # Chaînes mises en avant
     featured_streams = db.query(ExternalStream).filter(
         ExternalStream.is_active == True,
         ExternalStream.category.in_(["news", "sports", "entertainment"])
     ).order_by(ExternalStream.id.desc()).limit(6).all()
+    
+    featured_streams_dict = []
+    for s in featured_streams:
+        featured_streams_dict.append({
+            "id": s.id,
+            "title": s.title,
+            "logo": s.logo or "",
+            "category": s.category,
+            "stream_type": s.stream_type,
+        })
+
+    response = templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "live_streams": live_streams_dict,
+            "external_streams": external_streams_dict,
+            "pl_countries": pl_countries,
+            "pl_subdivisions": pl_subdivisions,
+            "pl_cities": pl_cities,
+            "pl_categories": pl_categories,
+            "iptv_channels": iptv_channels_dict,
+            "selected_playlist": selected_playlist_dict,
+            "categories": categories_stats,
+            "language": lang,
+            "visitor_id": visitor_id,
+            "app_name": settings.APP_NAME,
+            "current_category": category,
+            "current_playlist": playlist,
+            "logo_path": settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None,
+            "radio_streams": radio_streams_dict,
+            "featured_streams": featured_streams_dict,
+        }
+    )
+
+    # Définir le cookie visiteur si nécessaire
+    if not request.cookies.get('visitor_id'):
+        response.set_cookie(
+            key="visitor_id",
+            value=visitor_id,
+            max_age=settings.SESSION_MAX_AGE,
+            httponly=True,
+            samesite="lax"
+        )
+
+    return response
 
     # === DEBUG: Log types of all template variables to find dict/.split() issue ===
     try:
