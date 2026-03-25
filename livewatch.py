@@ -2849,21 +2849,18 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 # Fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-# ── Fix Python 3.14 + Jinja2 incompatibility ────────────────────────────
-# Jinja2's LRUCache builds cache keys as tuples that include a globals dict.
-# Python 3.14 raises TypeError: "cannot use 'tuple' as a dict key (unhashable type: 'dict')"
-# Fix: disable Jinja2 template bytecode cache entirely.
+# Fix Python 3.14 + Jinja2 : desactiver le cache LRUCache (TypeError sur tuples avec dicts)
 try:
     from jinja2 import Environment, FileSystemLoader
-    _env = Environment(
+    _jinja_env = Environment(
         loader=FileSystemLoader("templates"),
         autoescape=True,
-        cache_size=0,           # ← disables LRUCache completely
+        cache_size=0,
         auto_reload=True,
     )
-    templates.env = _env
+    templates.env = _jinja_env
 except Exception:
-    pass  # keep default if override fails
+    pass
 
 # Middleware de sécurité
 @app.middleware("http")
@@ -3121,7 +3118,7 @@ async def home(
     # Grouper par type — trier les pays alphabétiquement par display_name
     pl_countries = sorted(
         [p for p in playlists_all if p.playlist_type == "country"],
-        key=lambda p: p.display_name.split(' ', 1)[1] if ' ' in p.display_name else p.display_name
+        key=lambda p: (p.display_name or '').split(' ', 1)[-1].strip().lower()
     )
     pl_subdivisions = []   # masqués du dashboard principal
     pl_cities = []         # masqués du dashboard principal
@@ -10619,7 +10616,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  onerror="this.style.display='none'">
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.25) 60%,transparent 100%);"></div>
             <div style="position:relative;margin-top:auto;padding:8px;">
-                <div style="font-size:12px;font-weight:700;color:#fff;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.8);">{{ playlist.display_name.split(' ',1)[1] if ' ' in playlist.display_name else playlist.display_name }}</div>
+                <div style="font-size:12px;font-weight:700;color:#fff;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.8);">{{ ((playlist.display_name or '')|string).split(' ',1)[-1] or (playlist.display_name or '') }}</div>
                 <div style="font-size:10px;color:rgba(255,255,255,.8);text-shadow:0 1px 3px rgba(0,0,0,.8);">{{ playlist.channel_count or 0 }} chaînes</div>
             </div>
         </a>
@@ -10646,8 +10643,8 @@ document.addEventListener('DOMContentLoaded', function() {
         <a href="/?playlist={{ pl.name }}" class="stream-card"
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;padding:14px 12px;align-items:center;gap:8px;">
             <style>html.dark a.stream-card{background:#1f2937;border-color:#374151;}</style>
-            <div style="font-size:1.8rem;">{{ pl.display_name.split(' ')[0] if pl.display_name else '📺' }}</div>
-            <div style="font-size:12px;font-weight:700;text-align:center;">{{ pl.display_name.split(' ',1)[1] if ' ' in pl.display_name else pl.display_name }}</div>
+            <div style="font-size:1.8rem;">{{ ((pl.display_name or '📺')|string).split(' ')[0] }}</div>
+            <div style="font-size:12px;font-weight:700;text-align:center;">{{ ((pl.display_name or '')|string).split(' ',1)[-1] or (pl.display_name or '') }}</div>
             <div style="font-size:11px;color:#9ca3af;">{{ pl.channel_count or 0 }} chaînes</div>
         </a>
         {% endfor %}
