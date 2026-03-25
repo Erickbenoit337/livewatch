@@ -2786,9 +2786,23 @@ async def lifespan(app: FastAPI):
             owner.is_admin = True
         init_external_streams(db)
         init_iptv_playlists(db)
-        expired = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).delete(synchronize_session=False)
+        # Nettoyage visiteurs expirés — respecter la FK user_streams → visitors
+        expired_visitors = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).all()
+        expired_count = 0
+        for v in expired_visitors:
+            try:
+                # Supprimer d'abord les streams liés (cascade manuelle)
+                db.query(UserStream).filter(UserStream.visitor_id == v.id).delete(synchronize_session=False)
+                db.query(Comment).filter(Comment.visitor_id == v.id).delete(synchronize_session=False)
+                db.query(Favorite).filter(Favorite.visitor_id == v.id).delete(synchronize_session=False)
+                db.query(EventReminder).filter(EventReminder.visitor_id == v.id).delete(synchronize_session=False)
+                db.delete(v)
+                expired_count += 1
+            except Exception:
+                db.rollback()
+                continue
         db.commit()
-        logger.info(f"✅ {expired} visiteurs expirés nettoyés")
+        logger.info(f"✅ {expired_count} visiteurs expirés nettoyés")
         cutoff = datetime.utcnow() - timedelta(minutes=10)
         old_events = db.query(TVEvent).filter(TVEvent.end_time < cutoff).delete(synchronize_session=False)
         db.commit()
@@ -2849,7 +2863,8 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 # Fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-# Fix Python 3.14 + Jinja2 : desactiver le cache LRUCache (TypeError sur tuples avec dicts)
+# Fix Python 3.14 + Jinja2: LRUCache uses (name, globals_tuple) as key.
+# Python 3.14 raises TypeError when tuple contains dicts. Fix: cache_size=0.
 try:
     from jinja2 import Environment, FileSystemLoader
     _jinja_env = Environment(
@@ -6546,7 +6561,19 @@ async def admin_cleanup_visitors(request: Request, db: Session = Depends(get_db)
         return JSONResponse(status_code=401, content={"error": "Non autorisé"})
     from datetime import datetime, timezone, timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-    deleted = db.query(Visitor).filter(Visitor.last_seen < cutoff).delete(synchronize_session=False)
+    old_visitors = db.query(Visitor).filter(Visitor.last_seen < cutoff).all()
+    deleted = 0
+    for v in old_visitors:
+        try:
+            db.query(UserStream).filter(UserStream.visitor_id == v.id).delete(synchronize_session=False)
+            db.query(Comment).filter(Comment.visitor_id == v.id).delete(synchronize_session=False)
+            db.query(Favorite).filter(Favorite.visitor_id == v.id).delete(synchronize_session=False)
+            db.query(EventReminder).filter(EventReminder.visitor_id == v.id).delete(synchronize_session=False)
+            db.delete(v)
+            deleted += 1
+        except Exception:
+            db.rollback()
+            continue
     db.commit()
     return JSONResponse({"success": True, "deleted": deleted})
 
