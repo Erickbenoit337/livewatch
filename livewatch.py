@@ -2786,17 +2786,16 @@ async def lifespan(app: FastAPI):
             owner.is_admin = True
         init_external_streams(db)
         init_iptv_playlists(db)
-        # Nettoyage visiteurs expirés — respecter la FK user_streams → visitors
+        # Nettoyage visiteurs expirés avec cascade manuelle (FK vers user_streams)
         expired_visitors = db.query(Visitor).filter(Visitor.expires_at < datetime.utcnow()).all()
         expired_count = 0
-        for v in expired_visitors:
+        for _v in expired_visitors:
             try:
-                # Supprimer d'abord les streams liés (cascade manuelle)
-                db.query(UserStream).filter(UserStream.visitor_id == v.id).delete(synchronize_session=False)
-                db.query(Comment).filter(Comment.visitor_id == v.id).delete(synchronize_session=False)
-                db.query(Favorite).filter(Favorite.visitor_id == v.id).delete(synchronize_session=False)
-                db.query(EventReminder).filter(EventReminder.visitor_id == v.id).delete(synchronize_session=False)
-                db.delete(v)
+                db.query(UserStream).filter(UserStream.visitor_id == _v.id).delete(synchronize_session=False)
+                db.query(Comment).filter(Comment.visitor_id == _v.id).delete(synchronize_session=False)
+                db.query(Favorite).filter(Favorite.visitor_id == _v.id).delete(synchronize_session=False)
+                db.query(EventReminder).filter(EventReminder.visitor_id == _v.id).delete(synchronize_session=False)
+                db.delete(_v)
                 expired_count += 1
             except Exception:
                 db.rollback()
@@ -2863,8 +2862,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 # Fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-# Fix Python 3.14 + Jinja2: LRUCache uses (name, globals_tuple) as key.
-# Python 3.14 raises TypeError when tuple contains dicts. Fix: cache_size=0.
+# Fix Python 3.14 + Jinja2: LRUCache TypeError quand globals contient des dicts
 try:
     from jinja2 import Environment, FileSystemLoader
     _jinja_env = Environment(
@@ -3216,6 +3214,30 @@ async def home(
         ExternalStream.is_active == True,
         ExternalStream.category.in_(["news", "sports", "entertainment"])
     ).order_by(ExternalStream.id.desc()).limit(6).all()
+
+    # === DEBUG: Log types of all template variables to find dict/.split() issue ===
+    try:
+        _debug_vars = {
+            "pl_countries": f"{type(pl_countries[0]).__name__ if pl_countries else 'empty'} ({len(pl_countries)} items)",
+            "pl_categories": f"{type(pl_categories[0]).__name__ if pl_categories else 'empty'} ({len(pl_categories)} items)",
+            "external_streams": f"{type(external_streams[0]).__name__ if external_streams else 'empty'} ({len(external_streams)} items)",
+            "categories_stats": f"{type(categories_stats[0]).__name__ if categories_stats else 'empty'} ({len(categories_stats)} items)",
+            "live_streams": f"{type(live_streams[0]).__name__ if live_streams else 'empty'} ({len(live_streams)} items)",
+            "iptv_channels": f"{type(iptv_channels[0]).__name__ if iptv_channels else 'empty'} ({len(iptv_channels)} items)",
+        }
+        # Check if any pl_countries or pl_categories item is a dict (the root cause)
+        for _item in pl_countries[:3]:
+            if isinstance(_item, dict):
+                logger.warning(f"⚠️ DEBUG: pl_countries contient un DICT: {list(_item.keys())}")
+                break
+        for _item in pl_categories[:3]:
+            if isinstance(_item, dict):
+                logger.warning(f"⚠️ DEBUG: pl_categories contient un DICT: {list(_item.keys())}")
+                break
+        logger.debug(f"DEBUG home() template vars: {_debug_vars}")
+    except Exception as _de:
+        logger.warning(f"DEBUG check failed: {_de}")
+    # === FIN DEBUG ===
 
     response = templates.TemplateResponse(
         "index.html",
@@ -6561,19 +6583,7 @@ async def admin_cleanup_visitors(request: Request, db: Session = Depends(get_db)
         return JSONResponse(status_code=401, content={"error": "Non autorisé"})
     from datetime import datetime, timezone, timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=90)
-    old_visitors = db.query(Visitor).filter(Visitor.last_seen < cutoff).all()
-    deleted = 0
-    for v in old_visitors:
-        try:
-            db.query(UserStream).filter(UserStream.visitor_id == v.id).delete(synchronize_session=False)
-            db.query(Comment).filter(Comment.visitor_id == v.id).delete(synchronize_session=False)
-            db.query(Favorite).filter(Favorite.visitor_id == v.id).delete(synchronize_session=False)
-            db.query(EventReminder).filter(EventReminder.visitor_id == v.id).delete(synchronize_session=False)
-            db.delete(v)
-            deleted += 1
-        except Exception:
-            db.rollback()
-            continue
+    deleted = db.query(Visitor).filter(Visitor.last_seen < cutoff).delete(synchronize_session=False)
     db.commit()
     return JSONResponse({"success": True, "deleted": deleted})
 
@@ -9861,11 +9871,23 @@ async def track_visitor_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception as e:
-        import traceback
-        logger.error(f"Unhandled error on {path}: {e}\n{traceback.format_exc()}")
+        import traceback as _tb
+        tb_str = _tb.format_exc()
+        # Log complet avec traceback pour identifier la ligne exacte
+        logger.error(
+            f"=== ERREUR 500 sur {request.method} {path} ===\n"
+            f"Type: {type(e).__name__}\n"
+            f"Message: {e}\n"
+            f"Traceback complet:\n{tb_str}"
+        )
         return JSONResponse(
             status_code=500,
-            content={"error": "Erreur interne du serveur", "detail": str(e)[:200]}
+            content={
+                "error": "Erreur interne du serveur",
+                "detail": str(e)[:200],
+                "type": type(e).__name__,
+                "path": path,
+            }
         )
 
     # Ajouter les headers de performance
