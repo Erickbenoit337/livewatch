@@ -10813,6 +10813,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'AU':'OC','NZ':'OC','FJ':'OC','PG':'OC'
         } %}
         {% for playlist in pl_countries %}
+        {%- set cc = playlist.country | default('') -%}
+        {%- set cont = cont_map.get(cc, 'OTHER') if cont_map is defined else '' -%}
         <a href="/?playlist={{ playlist.name }}" class="stream-card country-card"
            data-cont="{{ cont }}" data-cc="{{ cc }}"
            style="border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;position:relative;min-height:90px;background:#1e293b;">
@@ -10824,9 +10826,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.25) 60%,transparent 100%);"></div>
             <div style="position:relative;margin-top:auto;padding:8px;">
                 <div style="font-size:12px;font-weight:700;color:#fff;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.8);">
-                    {%- set display_name = playlist.display_name -%}
-                    {%- if display_name and ' ' in display_name -%}
-                        {{ display_name.split(' ', 1)[1] }}
+                    {%- set display_name = playlist.display_name | default('') | string -%}
+                    {%- set parts = display_name.split(' ', 1) -%}
+                    {%- if parts | length > 1 -%}
+                        {{ parts[1] }}
                     {%- else -%}
                         {{ display_name }}
                     {%- endif -%}
@@ -10858,17 +10861,19 @@ document.addEventListener('DOMContentLoaded', function() {
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;padding:14px 12px;align-items:center;gap:8px;">
             <style>html.dark a.stream-card{background:#1f2937;border-color:#374151;}</style>
             <div style="font-size:1.8rem;">
-                {%- set display_name = pl.display_name -%}
-                {%- if display_name and display_name|string -%}
-                    {{ display_name|string.split(' ')[0] }}
+                {%- set display_name = pl.display_name | default('') | string -%}
+                {%- set parts = display_name.split(' ', 1) -%}
+                {%- if parts[0] -%}
+                    {{ parts[0] }}
                 {%- else -%}
                     📺
                 {%- endif -%}
             </div>
             <div style="font-size:12px;font-weight:700;text-align:center;">
-                {%- set display_name = pl.display_name -%}
-                {%- if display_name and ' ' in display_name -%}
-                    {{ display_name.split(' ', 1)[1] }}
+                {%- set display_name = pl.display_name | default('') | string -%}
+                {%- set parts = display_name.split(' ', 1) -%}
+                {%- if parts | length > 1 -%}
+                    {{ parts[1] }}
                 {%- else -%}
                     {{ display_name }}
                 {%- endif -%}
