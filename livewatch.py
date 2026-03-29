@@ -10767,6 +10767,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'AU':'OC','NZ':'OC','FJ':'OC','PG':'OC'
         } %}
         {% for playlist in pl_countries %}
+        {%- set cc = playlist.country | default('') | string -%}
+        {%- set cont = 'EU' if cc in ['FR','BE','CH','LU','DE','ES','IT','PT','NL','RU','PL','UA','RO','BG','RS','HR','SI','SK','CZ','HU','AT','GR','CY','MT','IS','NO','SE','FI','DK','IE','LT','LV','EE','MD','BY','GB','AL','AD','MC'] else ('AF' if cc in ['MA','DZ','TN','SN','CI','CM','ML','CD','CG','BF','NE','TD','GA','GN','BJ','TG','MR','LY','EG','ZA','NG','KE','TZ','UG','RW','MZ','GH','ET','AO','ZM','ZW','SD'] else ('AS' if cc in ['CN','JP','KR','IN','PK','BD','ID','MY','SG','PH','VN','TH','MM','KH','LA','NP','LK','AF','KZ','UZ','TJ','KG','TM','GE','AM','AZ','BN','MN','TW','HK'] else ('ME' if cc in ['SA','AE','QA','KW','BH','OM','JO','IQ','IR','SY','LB','IL','TR','YE','PS'] else ('NA' if cc in ['US','CA','MX','GT','HN','SV','NI','CR','PA','CU','DO','HT','JM','PR'] else ('SA' if cc in ['BR','AR','CO','CL','PE','VE','EC','BO','PY','UY'] else ('OC' if cc in ['AU','NZ','FJ','PG'] else 'OTHER')))))) -%}
         <a href="/?playlist={{ playlist.name }}" class="stream-card country-card"
            data-cont="{{ cont }}" data-cc="{{ cc }}"
            style="border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;position:relative;min-height:90px;background:#1e293b;">
@@ -10778,12 +10780,8 @@ document.addEventListener('DOMContentLoaded', function() {
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.25) 60%,transparent 100%);"></div>
             <div style="position:relative;margin-top:auto;padding:8px;">
                 <div style="font-size:12px;font-weight:700;color:#fff;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.8);">
-                    {%- set display_name = playlist.display_name -%}
-                    {%- if display_name and ' ' in display_name -%}
-                        {{ display_name.split(' ', 1)[1] }}
-                    {%- else -%}
-                        {{ display_name }}
-                    {%- endif -%}
+                    {%- set dn = playlist.display_name | default('') | string -%}
+                    {%- if ' ' in dn -%}{{ dn.split(' ', 1) | last }}{%- else -%}{{ dn }}{%- endif -%}
                 </div>
                 <div style="font-size:10px;color:rgba(255,255,255,.8);text-shadow:0 1px 3px rgba(0,0,0,.8);">{{ playlist.channel_count or 0 }} chaînes</div>
             </div>
@@ -10812,20 +10810,12 @@ document.addEventListener('DOMContentLoaded', function() {
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;padding:14px 12px;align-items:center;gap:8px;">
             <style>html.dark a.stream-card{background:#1f2937;border-color:#374151;}</style>
             <div style="font-size:1.8rem;">
-                {%- set display_name = pl.display_name -%}
-                {%- if display_name and display_name|string -%}
-                    {{ display_name|string.split(' ')[0] }}
-                {%- else -%}
-                    📺
-                {%- endif -%}
+                {%- set dn = pl.display_name | default('') | string -%}
+                {%- if dn -%}{{ dn.split(' ', 1) | first }}{%- else -%}📺{%- endif -%}
             </div>
             <div style="font-size:12px;font-weight:700;text-align:center;">
-                {%- set display_name = pl.display_name -%}
-                {%- if display_name and ' ' in display_name -%}
-                    {{ display_name.split(' ', 1)[1] }}
-                {%- else -%}
-                    {{ display_name }}
-                {%- endif -%}
+                {%- set dn = pl.display_name | default('') | string -%}
+                {%- if ' ' in dn -%}{{ dn.split(' ', 1) | last }}{%- else -%}{{ dn }}{%- endif -%}
             </div>
             <div style="font-size:11px;color:#9ca3af;">{{ pl.channel_count or 0 }} chaînes</div>
         </a>
