@@ -10820,6 +10820,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <div style="font-size:11px;color:#9ca3af;">{{ pl.channel_count or 0 }} chaînes</div>
         </a>
         {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 <!-- ── FLUX EXTERNES (TV, YouTube, Radio) — Uniquement sur le dashboard principal ── -->
 {% if external_streams and not selected_playlist and not current_category %}
