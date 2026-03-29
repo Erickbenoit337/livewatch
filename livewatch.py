@@ -105,7 +105,7 @@ class Settings:
     APP_DESCRIPTION = "Plateforme de streaming ultime — TV, Sports, Chaînes télévisions mondiales, YouTube Live, Radio & Lives communautaires"
 
     # Sécurité
-    SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
+    SECRET_KEY = os.getenv("SECRET_KEY", "livewatch-secret-key-walker92259-fixed-2024")
     ALGORITHM = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -10048,6 +10048,66 @@ app.add_middleware(
 )
 
 
+async def init_admin_account():
+    """Crée ou synchronise le compte admin propriétaire — appelé au démarrage"""
+    db = SessionLocal()
+    try:
+        _admin_email    = "erickbenoit337@gmail.com"
+        _admin_username = "WALKER92259"
+        _admin_password = "WALKER92259"
+
+        owner = db.query(User).filter(
+            or_(User.email == _admin_email, User.username == _admin_username)
+        ).first()
+
+        if not owner:
+            owner = User(
+                username=_admin_username,
+                email=_admin_email,
+                hashed_password=get_password_hash(_admin_password),
+                is_admin=True,
+                is_owner=True,
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(owner)
+            logger.info(f"✅ Compte admin créé : {_admin_username} / {_admin_email}")
+        else:
+            owner.username              = _admin_username
+            owner.email                 = _admin_email
+            owner.hashed_password       = get_password_hash(_admin_password)
+            owner.is_admin              = True
+            owner.is_owner              = True
+            owner.is_active             = True
+            owner.is_blocked            = False
+            owner.failed_login_attempts = 0
+            owner.locked_until          = None
+            logger.info(f"✅ Compte admin synchronisé : {_admin_username} / {_admin_email}")
+        db.commit()
+    except Exception as e:
+        logger.error(f"❌ Erreur init_admin_account : {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+async def init_iptv_playlists_async():
+    """Initialise les playlists IPTV si elles n'existent pas encore (version async)"""
+    db = SessionLocal()
+    try:
+        count = db.query(IPTVPlaylist).count()
+        if count == 0:
+            logger.info("⏳ Initialisation des playlists IPTV...")
+            init_iptv_playlists(db)
+        else:
+            logger.info(f"✅ {count} playlists IPTV déjà présentes")
+    except Exception as e:
+        logger.error(f"❌ Erreur init_iptv_playlists : {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 # ── Événement de démarrage enrichi ──────────────────────────────────────
 @app.on_event("startup")
 async def on_startup():
@@ -10081,7 +10141,7 @@ async def on_startup():
 
     # 3. Playlists IPTV
     try:
-        await init_iptv_playlists()
+        await init_iptv_playlists_async()
     except Exception as e:
         logger.warning(f"IPTV init: {e}")
 
@@ -10098,7 +10158,8 @@ async def on_startup():
     except Exception as e:
         logger.error(f"Templates error: {e}")
 
-    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{settings.PORT}")
+    port = int(os.environ.get("PORT", 8001))
+    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{port}")
     logger.info("=" * 60)
 
 
@@ -10451,19 +10512,19 @@ def write_all_templates():
     <style>
     html.dark nav { background:#1f2937 !important; border-color:#374151 !important; }
     </style>
-    <div style="max-width:1400px;margin:0 auto;padding:0 16px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="max-width:1400px;margin:0 auto;padding:0 12px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
 
         <!-- Logo -->
-        <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;">
-            <div style="width:38px;height:38px;background:linear-gradient(135deg,#dc2626,#f97316);border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-                <img src="/static/livewatch.png" alt="{{ app_name }}" style="height:28px;width:28px;object-fit:contain;"
+        <a href="/" style="display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0;min-width:0;">
+            <div style="width:36px;height:36px;background:linear-gradient(135deg,#dc2626,#f97316);border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                <img src="/static/livewatch.png" alt="{{ app_name }}" style="height:26px;width:26px;object-fit:contain;"
                      onerror="this.style.display='none';this.parentNode.innerHTML+='<i class=\'fas fa-play\' style=\'color:#fff;font-size:.9rem;\'></i>'">
             </div>
-            <span style="font-size:1.3rem;font-weight:900;background:linear-gradient(135deg,#dc2626,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{{ app_name }}</span>
+            <span style="font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#dc2626,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;">{{ app_name }}</span>
         </a>
 
         <!-- Nav links desktop -->
-        <div style="display:flex;align-items:center;gap:4px;" class="nav-desktop-links">
+        <div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:center;" class="nav-desktop-links">
             <a href="/?category=sports" class="nav-link">⚽ Sports</a>
             <a href="/?category=news" class="nav-link">📰 News</a>
             <a href="/?category=radio" class="nav-link">📻 Radio</a>
@@ -10471,38 +10532,61 @@ def write_all_templates():
             <a href="/?category=entertainment" class="nav-link">▶️ YouTube</a>
         </div>
 
-        <!-- Hamburger mobile -->
-        <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
-            <i class="fas fa-bars" id="ham-icon"></i>
-        </button>
+        <!-- Actions (toujours visibles) -->
+        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
 
-        <!-- Actions -->
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            <!-- Recherche : visible sur tous écrans -->
             <a href="/search" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;color:inherit;text-decoration:none;" title="Rechercher">
                 <i class="fas fa-search"></i>
             </a>
-            <a href="/go-live" style="display:flex;align-items:center;gap:6px;background:#dc2626;color:#fff;padding:7px 16px;border-radius:99px;text-decoration:none;font-size:13px;font-weight:700;transition:background .2s;">
+
+            <!-- Go Live : visible sur tous écrans -->
+            <a href="/go-live" style="display:flex;align-items:center;gap:5px;background:#dc2626;color:#fff;padding:7px 12px;border-radius:99px;text-decoration:none;font-size:13px;font-weight:700;transition:background .2s;white-space:nowrap;">
                 <i class="fas fa-circle" style="font-size:8px;animation:livePulse 1s infinite;"></i>
-                <span>Go Live</span>
+                <span class="golive-label">Go Live</span>
             </a>
-            <button onclick="toggleFavPanel()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
+
+            <!-- Favoris : masqué sur mobile (dans menu hamburger) -->
+            <button onclick="toggleFavPanel()" class="nav-icon-btn nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
                 <i class="fas fa-star" style="color:#f59e0b;"></i>
             </button>
+
+            <!-- Thème : visible sur tous écrans -->
             <button onclick="toggleTheme()" id="theme-btn" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Thème">
                 <i class="fas fa-sun" id="theme-icon"></i>
             </button>
-            <a href="/events" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 10px;border-radius:8px;position:relative;">
+
+            <!-- Événements : masqué sur mobile -->
+            <a href="/events" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;position:relative;">
                 📅
                 <span id="ann-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:1px 5px;border-radius:99px;line-height:1.4;"></span>
             </a>
-            <a href="/settings" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 10px;border-radius:8px;">
+
+            <!-- Paramètres : masqué sur mobile -->
+            <a href="/settings" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;">
                 ⚙️
             </a>
-            <a href="/admin" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;font-size:16px;background:rgba(55,65,81,.1);border:1px solid #e5e7eb;" title="Administration">
+
+            <!-- Admin : masqué sur mobile -->
+            <a href="/admin" class="nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;font-size:16px;background:rgba(55,65,81,.1);border:1px solid #e5e7eb;" title="Administration">
                 🔐
             </a>
+
+            <!-- Hamburger mobile — toujours à droite en dernier -->
+            <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
+                <i class="fas fa-bars" id="ham-icon"></i>
+            </button>
         </div>
     </div>
+    <style>
+        @media (max-width:900px) {
+            .nav-desktop-only { display:none !important; }
+            .golive-label { display:none; }
+        }
+        @media (min-width:901px) {
+            .golive-label { display:inline; }
+        }
+    </style>
 </nav>
 <style>
 .nav-link { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:600; color:inherit; transition:background .15s; }
@@ -10520,6 +10604,7 @@ html.dark .nav-link:hover { background:rgba(248,113,113,.1); color:#f87171; }
     <a href="/events">📅 Événements</a>
     <a href="/go-live" style="background:#dc2626;color:#fff !important;border-radius:10px;">🔴 Go Live</a>
     <a href="/search">🔍 Rechercher</a>
+    <a onclick="toggleFavPanel();toggleMobMenu();" href="#" style="cursor:pointer;">⭐ Mes favoris</a>
     <a href="/settings">⚙️ Paramètres</a>
     <a href="/admin">🔐 Administration</a>
 </div>
