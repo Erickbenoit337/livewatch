@@ -2766,10 +2766,10 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
+        admin_password = settings.ADMIN_PASSWORD
+        if len(admin_password.encode('utf-8')) > 72:
+            admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
         if not owner:
-            admin_password = settings.ADMIN_PASSWORD
-            if len(admin_password.encode('utf-8')) > 72:
-                admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
             owner = User(
                 username=settings.ADMIN_USERNAME,
                 email=settings.OWNER_ID,
@@ -2782,8 +2782,16 @@ async def lifespan(app: FastAPI):
             db.add(owner)
             logger.info("✅ Compte propriétaire créé")
         else:
+            # Toujours synchroniser username + mot de passe avec les settings
+            owner.username = settings.ADMIN_USERNAME
+            owner.hashed_password = get_password_hash(admin_password)
             owner.is_owner = True
             owner.is_admin = True
+            owner.is_active = True
+            owner.is_blocked = False
+            owner.failed_login_attempts = 0
+            owner.locked_until = None
+            logger.info("✅ Compte propriétaire synchronisé")
         init_external_streams(db)
         init_iptv_playlists(db)
         # Nettoyage visiteurs expirés avec cascade manuelle (FK vers user_streams)
