@@ -2462,24 +2462,33 @@ def get_db():
         db.close()
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Vérifie un mot de passe — supporte bcrypt ET le fallback sha256$"""
     try:
+        import hashlib as _hl
+        # Cas 1 : hash de secours sha256$ (généré quand bcrypt indisponible)
+        if hashed and hashed.startswith("sha256$"):
+            expected = "sha256$" + _hl.sha256(plain.encode('utf-8')).hexdigest()
+            return secrets.compare_digest(hashed, expected)
+        # Cas 2 : hash bcrypt normal
         plain_bytes = plain.encode('utf-8')
         if len(plain_bytes) > 72:
             plain = plain_bytes[:72].decode('utf-8', errors='ignore')
         return pwd_context.verify(plain, hashed)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"verify_password error: {e}")
         return False
 
 def get_password_hash(pw: str) -> str:
+    """Hache un mot de passe — bcrypt prioritaire, sha256 en secours"""
     try:
         pw_bytes = pw.encode('utf-8')
         if len(pw_bytes) > 72:
             pw = pw_bytes[:72].decode('utf-8', errors='ignore')
         return pwd_context.hash(pw)
     except Exception as e:
-        logger.warning(f"bcrypt error: {e}")
-        import hashlib
-        return "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
+        logger.warning(f"bcrypt unavailable, using sha256 fallback: {e}")
+        import hashlib as _hl
+        return "sha256$" + _hl.sha256(pw.encode('utf-8')).hexdigest()
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -4403,24 +4412,49 @@ async def admin_login(
     db: Session = Depends(get_db)
 ):
     """Traitement de la connexion admin"""
-    # Accepter username OU email
-    user = db.query(User).filter(
-        and_(
-            or_(User.username == username, User.email == username),
-            User.is_admin == True,
-            User.is_blocked == False
-        )
-    ).first()
 
-    if user and verify_password(password, user.hashed_password):
-        # Réinitialiser les tentatives échouées
-        user.failed_login_attempts = 0
-        user.locked_until = None
-        user.last_login = datetime.utcnow()
-        user.ip_address = request.client.host if request.client else "0.0.0.0"
+    # ── Filet de sécurité : vérification directe des credentials propriétaire ──
+    # Cela permet la connexion même si le hash en base est corrompu
+    _OWNER_USER = os.getenv("ADMIN_USERNAME", "WALKER92259")
+    _OWNER_MAIL = os.getenv("ADMIN_EMAIL", "erickbenoit337@gmail.com")
+    _OWNER_PASS = os.getenv("ADMIN_PASSWORD", "WALKER92259")
+
+    is_direct_match = (
+        (username == _OWNER_USER or username == _OWNER_MAIL)
+        and secrets.compare_digest(password, _OWNER_PASS)
+    )
+
+    # Si correspondance directe → s'assurer que le compte est à jour en base
+    if is_direct_match:
+        user = db.query(User).filter(
+            or_(User.username == _OWNER_USER, User.email == _OWNER_MAIL)
+        ).first()
+        if not user:
+            user = User(
+                username=_OWNER_USER,
+                email=_OWNER_MAIL,
+                hashed_password=get_password_hash(_OWNER_PASS),
+                is_admin=True,
+                is_owner=True,
+                is_active=True,
+                is_blocked=False,
+                failed_login_attempts=0,
+                locked_until=None,
+                created_at=datetime.utcnow()
+            )
+            db.add(user)
+        else:
+            user.hashed_password       = get_password_hash(_OWNER_PASS)
+            user.is_admin              = True
+            user.is_owner              = True
+            user.is_active             = True
+            user.is_blocked            = False
+            user.failed_login_attempts = 0
+            user.locked_until          = None
+        user.last_login  = datetime.utcnow()
+        user.ip_address  = request.client.host if request.client else "0.0.0.0"
         db.commit()
 
-        # Créer le token
         token = create_access_token(
             data={
                 "sub": user.id,
@@ -4430,7 +4464,6 @@ async def admin_login(
             },
             expires_delta=timedelta(hours=24)
         )
-
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
         response.set_cookie(
             key="admin_token",
@@ -4438,7 +4471,44 @@ async def admin_login(
             max_age=86400,
             httponly=True,
             samesite="lax",
-            secure=False  # Mettre à True en production avec HTTPS
+            secure=False
+        )
+        logger.info(f"✅ Connexion admin directe : {username}")
+        return response
+
+    # ── Vérification normale via la base de données ──────────────────────────
+    user = db.query(User).filter(
+        and_(
+            or_(User.username == username, User.email == username),
+            User.is_admin == True,
+            User.is_blocked == False
+        )
+    ).first()
+
+    if user and verify_password(password, user.hashed_password):
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        user.last_login   = datetime.utcnow()
+        user.ip_address   = request.client.host if request.client else "0.0.0.0"
+        db.commit()
+
+        token = create_access_token(
+            data={
+                "sub": user.id,
+                "admin": True,
+                "username": user.username,
+                "is_owner": user.is_owner
+            },
+            expires_delta=timedelta(hours=24)
+        )
+        response = RedirectResponse(url="/admin/dashboard", status_code=303)
+        response.set_cookie(
+            key="admin_token",
+            value=token,
+            max_age=86400,
+            httponly=True,
+            samesite="lax",
+            secure=False
         )
         return response
 
@@ -4447,6 +4517,7 @@ async def admin_login(
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         db.commit()
 
+    logger.warning(f"❌ Tentative de connexion admin échouée : {username}")
     return templates.TemplateResponse(
         request,
         "admin_login.html",
@@ -10049,12 +10120,12 @@ app.add_middleware(
 
 
 async def init_admin_account():
-    """Crée ou synchronise le compte admin propriétaire — appelé au démarrage"""
+    """Crée ou synchronise le compte admin propriétaire au démarrage"""
     db = SessionLocal()
     try:
-        _admin_email    = "erickbenoit337@gmail.com"
-        _admin_username = "WALKER92259"
-        _admin_password = "WALKER92259"
+        _admin_email    = os.getenv("ADMIN_EMAIL",    "erickbenoit337@gmail.com")
+        _admin_username = os.getenv("ADMIN_USERNAME", "WALKER92259")
+        _admin_password = os.getenv("ADMIN_PASSWORD", "WALKER92259")
 
         owner = db.query(User).filter(
             or_(User.email == _admin_email, User.username == _admin_username)
@@ -10068,6 +10139,9 @@ async def init_admin_account():
                 is_admin=True,
                 is_owner=True,
                 is_active=True,
+                is_blocked=False,
+                failed_login_attempts=0,
+                locked_until=None,
                 created_at=datetime.utcnow()
             )
             db.add(owner)
@@ -10085,14 +10159,14 @@ async def init_admin_account():
             logger.info(f"✅ Compte admin synchronisé : {_admin_username} / {_admin_email}")
         db.commit()
     except Exception as e:
-        logger.error(f"❌ Erreur init_admin_account : {e}")
+        logger.error(f"❌ init_admin_account : {e}")
         db.rollback()
     finally:
         db.close()
 
 
 async def init_iptv_playlists_async():
-    """Initialise les playlists IPTV si elles n'existent pas encore (version async)"""
+    """Initialise les playlists IPTV si elles n'existent pas encore (async wrapper)"""
     db = SessionLocal()
     try:
         count = db.query(IPTVPlaylist).count()
@@ -10102,7 +10176,7 @@ async def init_iptv_playlists_async():
         else:
             logger.info(f"✅ {count} playlists IPTV déjà présentes")
     except Exception as e:
-        logger.error(f"❌ Erreur init_iptv_playlists : {e}")
+        logger.error(f"❌ init_iptv_playlists_async : {e}")
         db.rollback()
     finally:
         db.close()
@@ -10158,8 +10232,8 @@ async def on_startup():
     except Exception as e:
         logger.error(f"Templates error: {e}")
 
-    port = int(os.environ.get("PORT", 8001))
-    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{port}")
+    _port = int(os.environ.get("PORT", 8001))
+    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{_port}")
     logger.info("=" * 60)
 
 
@@ -10523,7 +10597,7 @@ def write_all_templates():
             <span style="font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#dc2626,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;">{{ app_name }}</span>
         </a>
 
-        <!-- Nav links desktop -->
+        <!-- Nav links desktop uniquement -->
         <div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:center;" class="nav-desktop-links">
             <a href="/?category=sports" class="nav-link">⚽ Sports</a>
             <a href="/?category=news" class="nav-link">📰 News</a>
@@ -10532,59 +10606,57 @@ def write_all_templates():
             <a href="/?category=entertainment" class="nav-link">▶️ YouTube</a>
         </div>
 
-        <!-- Actions (toujours visibles) -->
+        <!-- Zone actions droite -->
         <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
 
-            <!-- Recherche : visible sur tous écrans -->
+            <!-- Recherche — visible partout -->
             <a href="/search" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;color:inherit;text-decoration:none;" title="Rechercher">
                 <i class="fas fa-search"></i>
             </a>
 
-            <!-- Go Live : visible sur tous écrans -->
+            <!-- Go Live — visible partout, texte masqué sur mobile -->
             <a href="/go-live" style="display:flex;align-items:center;gap:5px;background:#dc2626;color:#fff;padding:7px 12px;border-radius:99px;text-decoration:none;font-size:13px;font-weight:700;transition:background .2s;white-space:nowrap;">
                 <i class="fas fa-circle" style="font-size:8px;animation:livePulse 1s infinite;"></i>
-                <span class="golive-label">Go Live</span>
+                <span class="nav-golive-label">Go Live</span>
             </a>
 
-            <!-- Favoris : masqué sur mobile (dans menu hamburger) -->
-            <button onclick="toggleFavPanel()" class="nav-icon-btn nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
-                <i class="fas fa-star" style="color:#f59e0b;"></i>
-            </button>
-
-            <!-- Thème : visible sur tous écrans -->
+            <!-- Thème — visible partout -->
             <button onclick="toggleTheme()" id="theme-btn" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Thème">
                 <i class="fas fa-sun" id="theme-icon"></i>
             </button>
 
-            <!-- Événements : masqué sur mobile -->
+            <!-- Favoris — masqué sur mobile (accessible via menu hamburger) -->
+            <button onclick="toggleFavPanel()" class="nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
+                <i class="fas fa-star" style="color:#f59e0b;"></i>
+            </button>
+
+            <!-- Événements — masqué sur mobile -->
             <a href="/events" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;position:relative;">
                 📅
                 <span id="ann-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:1px 5px;border-radius:99px;line-height:1.4;"></span>
             </a>
 
-            <!-- Paramètres : masqué sur mobile -->
+            <!-- Paramètres — masqué sur mobile -->
             <a href="/settings" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;">
                 ⚙️
             </a>
 
-            <!-- Admin : masqué sur mobile -->
+            <!-- Admin — masqué sur mobile -->
             <a href="/admin" class="nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;font-size:16px;background:rgba(55,65,81,.1);border:1px solid #e5e7eb;" title="Administration">
                 🔐
             </a>
 
-            <!-- Hamburger mobile — toujours à droite en dernier -->
+            <!-- Hamburger — toujours visible à droite en dernier -->
             <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
                 <i class="fas fa-bars" id="ham-icon"></i>
             </button>
         </div>
+
     </div>
     <style>
         @media (max-width:900px) {
             .nav-desktop-only { display:none !important; }
-            .golive-label { display:none; }
-        }
-        @media (min-width:901px) {
-            .golive-label { display:inline; }
+            .nav-golive-label { display:none !important; }
         }
     </style>
 </nav>
@@ -10604,7 +10676,6 @@ html.dark .nav-link:hover { background:rgba(248,113,113,.1); color:#f87171; }
     <a href="/events">📅 Événements</a>
     <a href="/go-live" style="background:#dc2626;color:#fff !important;border-radius:10px;">🔴 Go Live</a>
     <a href="/search">🔍 Rechercher</a>
-    <a onclick="toggleFavPanel();toggleMobMenu();" href="#" style="cursor:pointer;">⭐ Mes favoris</a>
     <a href="/settings">⚙️ Paramètres</a>
     <a href="/admin">🔐 Administration</a>
 </div>
