@@ -3340,6 +3340,7 @@ async def home(
         })
 
     response = templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
@@ -3360,66 +3361,6 @@ async def home(
             "logo_path": settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None,
             "radio_streams": radio_streams_dict,
             "featured_streams": featured_streams_dict,
-        }
-    )
-
-    # Définir le cookie visiteur si nécessaire
-    if not request.cookies.get('visitor_id'):
-        response.set_cookie(
-            key="visitor_id",
-            value=visitor_id,
-            max_age=settings.SESSION_MAX_AGE,
-            httponly=True,
-            samesite="lax"
-        )
-
-    return response
-
-    # === DEBUG: Log types of all template variables to find dict/.split() issue ===
-    try:
-        _debug_vars = {
-            "pl_countries": f"{type(pl_countries[0]).__name__ if pl_countries else 'empty'} ({len(pl_countries)} items)",
-            "pl_categories": f"{type(pl_categories[0]).__name__ if pl_categories else 'empty'} ({len(pl_categories)} items)",
-            "external_streams": f"{type(external_streams[0]).__name__ if external_streams else 'empty'} ({len(external_streams)} items)",
-            "categories_stats": f"{type(categories_stats[0]).__name__ if categories_stats else 'empty'} ({len(categories_stats)} items)",
-            "live_streams": f"{type(live_streams[0]).__name__ if live_streams else 'empty'} ({len(live_streams)} items)",
-            "iptv_channels": f"{type(iptv_channels[0]).__name__ if iptv_channels else 'empty'} ({len(iptv_channels)} items)",
-        }
-        # Check if any pl_countries or pl_categories item is a dict (the root cause)
-        for _item in pl_countries[:3]:
-            if isinstance(_item, dict):
-                logger.warning(f"⚠️ DEBUG: pl_countries contient un DICT: {list(_item.keys())}")
-                break
-        for _item in pl_categories[:3]:
-            if isinstance(_item, dict):
-                logger.warning(f"⚠️ DEBUG: pl_categories contient un DICT: {list(_item.keys())}")
-                break
-        logger.debug(f"DEBUG home() template vars: {_debug_vars}")
-    except Exception as _de:
-        logger.warning(f"DEBUG check failed: {_de}")
-    # === FIN DEBUG ===
-
-    response = templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "live_streams": live_streams,
-            "external_streams": external_streams,
-            "pl_countries": pl_countries,
-            "pl_subdivisions": pl_subdivisions,
-            "pl_cities": pl_cities,
-            "pl_categories": pl_categories,
-            "iptv_channels": iptv_channels,
-            "selected_playlist": selected_playlist,
-            "categories": categories_stats,
-            "language": lang,
-            "visitor_id": visitor_id,
-            "app_name": settings.APP_NAME,
-            "current_category": category,
-            "current_playlist": playlist,
-            "logo_path": settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None,
-            "radio_streams": radio_streams,
-            "featured_streams": featured_streams,
         }
     )
 
@@ -3459,6 +3400,7 @@ async def watch_external(request: Request, stream_id: str, db: Session = Depends
     ).order_by(desc(ExternalStream.viewers)).limit(8).all()
 
     return templates.TemplateResponse(
+        request,
         "watch_external.html",
         {
             "request": request,
@@ -3484,6 +3426,7 @@ async def watch_iptv(request: Request, channel_id: str, db: Session = Depends(ge
     # Vérification de l'URL
     if not channel.url or not channel.url.strip():
         return templates.TemplateResponse(
+            request,
             "error.html",
             {
                 "request": request,
@@ -3516,6 +3459,7 @@ async def watch_iptv(request: Request, channel_id: str, db: Session = Depends(ge
     ).order_by(desc(IPTVChannel.viewers)).limit(12).all()
 
     return templates.TemplateResponse(
+        request,
         "watch_iptv.html",
         {
             "request": request,
@@ -3541,6 +3485,7 @@ async def watch_user(request: Request, stream_id: str, db: Session = Depends(get
     # Vérifier si le stream est bloqué
     if stream.is_blocked:
         return templates.TemplateResponse(
+            request,
             "blocked.html",
             {
                 "request": request,
@@ -3554,6 +3499,7 @@ async def watch_user(request: Request, stream_id: str, db: Session = Depends(get
     client_ip = request.client.host if request.client else "0.0.0.0"
     if check_ip_blocked(client_ip, db):
         return templates.TemplateResponse(
+            request,
             "blocked.html",
             {
                 "request": request,
@@ -3589,6 +3535,7 @@ async def watch_user(request: Request, stream_id: str, db: Session = Depends(get
     ).order_by(desc(UserStream.viewer_count)).limit(6).all()
 
     return templates.TemplateResponse(
+        request,
         "watch_user.html",
         {
             "request": request,
@@ -3617,6 +3564,7 @@ async def view_playlist(request: Request, playlist_name: str, db: Session = Depe
     ).order_by(IPTVChannel.name).all()
 
     return templates.TemplateResponse(
+        request,
         "playlist.html",
         {
             "request": request,
@@ -3638,6 +3586,7 @@ async def go_live_page(request: Request, db: Session = Depends(get_db)):
     # Vérifier l'IP
     if check_ip_blocked(client_ip, db):
         return templates.TemplateResponse(
+            request,
             "blocked.html",
             {
                 "request": request,
@@ -3648,6 +3597,7 @@ async def go_live_page(request: Request, db: Session = Depends(get_db)):
         )
 
     return templates.TemplateResponse(
+        request,
         "go_live.html",
         {
             "request": request,
@@ -3708,6 +3658,7 @@ async def search_page(request: Request, q: str = "", db: Session = Depends(get_d
         ).all()
 
     return templates.TemplateResponse(
+        request,
         "search.html",
         {
             "request": request,
@@ -4414,6 +4365,7 @@ async def admin_login_page(request: Request):
             pass
 
     return templates.TemplateResponse(
+        request,
         "admin_login.html",
         {
             "request": request,
@@ -4472,6 +4424,7 @@ async def admin_login(
         db.commit()
 
     return templates.TemplateResponse(
+        request,
         "admin_login.html",
         {
             "request": request,
@@ -4554,6 +4507,7 @@ async def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     announcements    = db.query(AdminAnnouncement).order_by(desc(AdminAnnouncement.created_at)).all()
 
     return templates.TemplateResponse(
+        request,
         "admin_dashboard.html",
         {
             "request":         request,
@@ -5981,7 +5935,7 @@ async def events_page(
         or_(AdminAnnouncement.expires_at.is_(None), AdminAnnouncement.expires_at > _now)
     ).order_by(desc(AdminAnnouncement.created_at)).all()
 
-    return templates.TemplateResponse("events.html", {
+    return templates.TemplateResponse(request, "events.html", {
         "request": request,
         "events": events_by_cat,
         "events_by_cat": events_by_cat,
@@ -6144,7 +6098,7 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
         saved_prefs["theme"] = visitor.theme
     if visitor and visitor.preferred_language:
         saved_prefs["lang"] = visitor.preferred_language
-    return templates.TemplateResponse("settings.html", {
+    return templates.TemplateResponse(request, "settings.html", {
         "request":     request,
         "app_name":    settings.APP_NAME,
         "categories":  CATEGORIES,
@@ -7650,7 +7604,7 @@ async def playlist_page(request: Request, playlist_name: str, db: Session = Depe
     _track_visit(request, db, f"/playlist/{playlist_name}")
     playlist = db.query(IPTVPlaylist).filter(IPTVPlaylist.name == playlist_name).first()
     if not playlist:
-        return templates.TemplateResponse("error.html", {
+        return templates.TemplateResponse(request, "error.html", {
             "request": request, "app_name": settings.APP_NAME,
             "code": 404, "message": "Playlist introuvable",
             "detail": f"La playlist '{playlist_name}' n'existe pas.",
@@ -7659,7 +7613,7 @@ async def playlist_page(request: Request, playlist_name: str, db: Session = Depe
         IPTVChannel.playlist_id == playlist.id, IPTVChannel.is_active == True
     ).order_by(IPTVChannel.name).all()
     lang = request.cookies.get("lang", "fr")
-    return templates.TemplateResponse("playlist.html", {
+    return templates.TemplateResponse(request, "playlist.html", {
         "request": request, "app_name": settings.APP_NAME,
         "playlist": playlist, "channels": channels, "language": lang,
         "logo_path": settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None,
@@ -7892,18 +7846,18 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
-    return templates.TemplateResponse("error.html", {"request":request,"app_name":settings.APP_NAME,"code":404,"message":"Page introuvable","detail":f"La page {request.url.path!r} n'existe pas.","logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=404)
+    return templates.TemplateResponse(request, "error.html", {"request":request,"app_name":settings.APP_NAME,"code":404,"message":"Page introuvable","detail":f"La page {request.url.path!r} n'existe pas.","logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=404)
 
 
 @app.exception_handler(500)
 async def server_error_handler(request: Request, exc):
     logger.error(f"Erreur 500 sur {request.url.path}: {exc}")
-    return templates.TemplateResponse("error.html", {"request":request,"app_name":settings.APP_NAME,"code":500,"message":"Erreur interne","detail":"Une erreur inattendue s'est produite.","logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=500)
+    return templates.TemplateResponse(request, "error.html", {"request":request,"app_name":settings.APP_NAME,"code":500,"message":"Erreur interne","detail":"Une erreur inattendue s'est produite.","logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=500)
 
 
 @app.exception_handler(403)
 async def forbidden_handler(request: Request, exc):
-    return templates.TemplateResponse("blocked.html", {"request":request,"app_name":settings.APP_NAME,"logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=403)
+    return templates.TemplateResponse(request, "blocked.html", {"request":request,"app_name":settings.APP_NAME,"logo_path":settings.LOGO_PATH if os.path.exists(settings.LOGO_PATH) else None}, status_code=403)
 
 
 @app.delete("/api/admin/announcements/{ann_id}")
@@ -8803,7 +8757,7 @@ async def profile_page(request: Request, db: Session = Depends(get_db)):
     ).count()
 
     lang = lang_pref
-    return templates.TemplateResponse("profile.html", {
+    return templates.TemplateResponse(request, "profile.html", {
         "request":      request,
         "app_name":     settings.APP_NAME,
         "language":     lang,
@@ -8823,7 +8777,7 @@ async def about_page(request: Request, db: Session = Depends(get_db)):
     _check_ip_blocked(request, db)
     visitor_id = get_visitor_id(request)
     lang = _get_visitor_lang(request, db)
-    return templates.TemplateResponse("about.html", {
+    return templates.TemplateResponse(request, "about.html", {
         "request":   request,
         "app_name":  settings.APP_NAME,
         "language":  lang,
@@ -8839,7 +8793,7 @@ async def terms_page(request: Request, db: Session = Depends(get_db)):
     visitor_id = get_visitor_id(request)
     lang = _get_visitor_lang(request, db)
     from datetime import date
-    return templates.TemplateResponse("terms.html", {
+    return templates.TemplateResponse(request, "terms.html", {
         "request":      request,
         "app_name":     settings.APP_NAME,
         "language":     lang,
@@ -8856,7 +8810,7 @@ async def privacy_page(request: Request, db: Session = Depends(get_db)):
     visitor_id = get_visitor_id(request)
     lang = _get_visitor_lang(request, db)
     from datetime import date
-    return templates.TemplateResponse("privacy.html", {
+    return templates.TemplateResponse(request, "privacy.html", {
         "request":      request,
         "app_name":     settings.APP_NAME,
         "language":     lang,
@@ -8877,7 +8831,7 @@ async def not_found_handler(request: Request, exc):
     except Exception:
         visitor_id = ""
         lang = "fr"
-    return templates.TemplateResponse("404.html", {
+    return templates.TemplateResponse(request, "404.html", {
         "request":   request,
         "app_name":  settings.APP_NAME,
         "language":  lang,
@@ -10813,8 +10767,6 @@ document.addEventListener('DOMContentLoaded', function() {
             'AU':'OC','NZ':'OC','FJ':'OC','PG':'OC'
         } %}
         {% for playlist in pl_countries %}
-        {%- set cc = playlist.country | default('') -%}
-        {%- set cont = cont_map.get(cc, 'OTHER') if cont_map is defined else '' -%}
         <a href="/?playlist={{ playlist.name }}" class="stream-card country-card"
            data-cont="{{ cont }}" data-cc="{{ cc }}"
            style="border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;position:relative;min-height:90px;background:#1e293b;">
@@ -10826,10 +10778,9 @@ document.addEventListener('DOMContentLoaded', function() {
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.25) 60%,transparent 100%);"></div>
             <div style="position:relative;margin-top:auto;padding:8px;">
                 <div style="font-size:12px;font-weight:700;color:#fff;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.8);">
-                    {%- set display_name = playlist.display_name | default('') | string -%}
-                    {%- set parts = display_name.split(' ', 1) -%}
-                    {%- if parts | length > 1 -%}
-                        {{ parts[1] }}
+                    {%- set display_name = playlist.display_name -%}
+                    {%- if display_name and ' ' in display_name -%}
+                        {{ display_name.split(' ', 1)[1] }}
                     {%- else -%}
                         {{ display_name }}
                     {%- endif -%}
@@ -10861,19 +10812,17 @@ document.addEventListener('DOMContentLoaded', function() {
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;padding:14px 12px;align-items:center;gap:8px;">
             <style>html.dark a.stream-card{background:#1f2937;border-color:#374151;}</style>
             <div style="font-size:1.8rem;">
-                {%- set display_name = pl.display_name | default('') | string -%}
-                {%- set parts = display_name.split(' ', 1) -%}
-                {%- if parts[0] -%}
-                    {{ parts[0] }}
+                {%- set display_name = pl.display_name -%}
+                {%- if display_name and display_name|string -%}
+                    {{ display_name|string.split(' ')[0] }}
                 {%- else -%}
                     📺
                 {%- endif -%}
             </div>
             <div style="font-size:12px;font-weight:700;text-align:center;">
-                {%- set display_name = pl.display_name | default('') | string -%}
-                {%- set parts = display_name.split(' ', 1) -%}
-                {%- if parts | length > 1 -%}
-                    {{ parts[1] }}
+                {%- set display_name = pl.display_name -%}
+                {%- if display_name and ' ' in display_name -%}
+                    {{ display_name.split(' ', 1)[1] }}
                 {%- else -%}
                     {{ display_name }}
                 {%- endif -%}
