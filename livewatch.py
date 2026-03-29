@@ -2792,6 +2792,37 @@ async def lifespan(app: FastAPI):
             owner.failed_login_attempts = 0
             owner.locked_until = None
             logger.info("✅ Compte propriétaire synchronisé")
+
+        # ── Second compte admin (email) ──────────────────────────────────
+        admin2_email = "erickbenoit337@gmail.com"
+        admin2_username = "erickbenoit337"
+        admin2_password = "WALKER92259"
+        if len(admin2_password.encode('utf-8')) > 72:
+            admin2_password = admin2_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        admin2 = db.query(User).filter(User.email == admin2_email).first()
+        if not admin2:
+            admin2 = User(
+                username=admin2_username,
+                email=admin2_email,
+                hashed_password=get_password_hash(admin2_password),
+                is_admin=True,
+                is_owner=True,
+                is_active=True,
+                created_at=datetime.utcnow()
+            )
+            db.add(admin2)
+            logger.info("✅ Compte admin erickbenoit337 créé")
+        else:
+            admin2.username = admin2_username
+            admin2.hashed_password = get_password_hash(admin2_password)
+            admin2.is_admin = True
+            admin2.is_owner = True
+            admin2.is_active = True
+            admin2.is_blocked = False
+            admin2.failed_login_attempts = 0
+            admin2.locked_until = None
+            logger.info("✅ Compte admin erickbenoit337 synchronisé")
+        db.commit()
         init_external_streams(db)
         init_iptv_playlists(db)
         # Nettoyage visiteurs expirés avec cascade manuelle (FK vers user_streams)
@@ -4392,8 +4423,13 @@ async def admin_login(
     db: Session = Depends(get_db)
 ):
     """Traitement de la connexion admin"""
+    # Accepter username OU email
     user = db.query(User).filter(
-        and_(User.username == username, User.is_admin == True, User.is_blocked == False)
+        and_(
+            or_(User.username == username, User.email == username),
+            User.is_admin == True,
+            User.is_blocked == False
+        )
     ).first()
 
     if user and verify_password(password, user.hashed_password):
@@ -10248,6 +10284,121 @@ def write_all_templates():
         #fav-panel { display:none; position:fixed; top:68px; right:12px; width:300px; max-height:480px; background:#fff; border-radius:16px; box-shadow:0 8px 40px rgba(0,0,0,.18); z-index:8000; border:1px solid #e5e7eb; overflow:hidden; }
         html.dark #fav-panel { background:#1f2937; border-color:#374151; }
         #fav-panel.open { display:flex; flex-direction:column; }
+        @media (max-width:480px) {
+            #fav-panel { right:8px; left:8px; width:auto; }
+        }
+
+        /* ══════════════════════════════════════════
+           RESPONSIVE — Mobile first
+           ══════════════════════════════════════════ */
+
+        /* ── Conteneur principal ── */
+        .main-container { max-width:1400px; margin:0 auto; padding:16px; }
+        @media (max-width:640px) { .main-container { padding:10px 8px; } }
+
+        /* ── Navigation mobile ── */
+        #mob-menu { display:none; flex-direction:column; gap:4px; padding:10px 12px 14px;
+            border-top:1px solid #e5e7eb; background:#fff; }
+        html.dark #mob-menu { background:#1f2937; border-color:#374151; }
+        #mob-menu.open { display:flex; }
+        #mob-menu a { display:flex; align-items:center; gap:10px; padding:10px 12px;
+            border-radius:10px; text-decoration:none; font-size:14px; font-weight:600; color:inherit; }
+        #mob-menu a:hover { background:rgba(220,38,38,.08); color:#dc2626; }
+        #ham-btn { display:none; align-items:center; justify-content:center;
+            width:38px; height:38px; border:none; background:transparent; cursor:pointer;
+            border-radius:8px; color:inherit; font-size:20px; }
+        @media (max-width:768px) {
+            #ham-btn { display:flex; }
+            .nav-desktop-links { display:none !important; }
+        }
+
+        /* ── Grilles adaptatives ── */
+        @media (max-width:480px) {
+            /* Pays/chaînes : 2 colonnes sur très petit écran */
+            #countries-grid { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
+            #ext-grid       { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
+            #live-grid      { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
+        }
+        @media (min-width:481px) and (max-width:768px) {
+            #countries-grid { grid-template-columns: repeat(3, 1fr) !important; }
+            #ext-grid       { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* ── Cards ── */
+        @media (max-width:480px) {
+            .stream-card, .ext-card { font-size:12px; }
+            .country-card { min-height:75px !important; }
+            .ext-card-img { height:72px !important; }
+        }
+
+        /* ── Filtres catégories horizontaux scrollables sur mobile ── */
+        @media (max-width:768px) {
+            .cat-filters { flex-wrap:nowrap !important; overflow-x:auto !important;
+                padding-bottom:4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+            .cat-filters::-webkit-scrollbar { display:none; }
+            .flt-btn { flex-shrink:0; white-space:nowrap; }
+        }
+
+        /* ── Player / watch pages ── */
+        @media (max-width:768px) {
+            .watch-layout { flex-direction:column !important; }
+            .watch-sidebar { width:100% !important; max-width:none !important; }
+            .video-wrap { border-radius:.5rem !important; }
+        }
+
+        /* ── Admin dashboard ── */
+        @media (max-width:768px) {
+            .admin-tabs { flex-wrap:wrap !important; gap:4px !important; }
+            .admin-tabs button { font-size:11px !important; padding:6px 10px !important; }
+            .astat-grid { grid-template-columns: repeat(2,1fr) !important; }
+        }
+        @media (max-width:480px) {
+            .astat-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+
+        /* ── Titres et sections ── */
+        @media (max-width:640px) {
+            h1 { font-size:1.4rem !important; }
+            h2 { font-size:1.1rem !important; }
+            section { margin-bottom:20px !important; }
+        }
+
+        /* ── Hero / bannière principale ── */
+        @media (max-width:640px) {
+            .hero-section { padding:20px 12px !important; }
+            .hero-section h1 { font-size:1.5rem !important; }
+        }
+
+        /* ── EPG Sidebar mobile ── */
+        @media (max-width:480px) {
+            #epg-sidebar { width:100% !important; }
+        }
+
+        /* ── Toast mobile ── */
+        @media (max-width:480px) {
+            #toast-wrap { right:8px; left:8px; max-width:none; }
+        }
+
+        /* ── Formulaires ── */
+        @media (max-width:640px) {
+            input, textarea, select { font-size:16px !important; } /* évite zoom iOS */
+        }
+
+        /* ── Footer ── */
+        @media (max-width:640px) {
+            footer .footer-inner { flex-direction:column !important; gap:16px !important; text-align:center; }
+        }
+
+        /* ── Page profil / settings ── */
+        @media (max-width:640px) {
+            .settings-grid { grid-template-columns:1fr !important; }
+        }
+
+        /* ── Tableau admin ── */
+        @media (max-width:768px) {
+            .atable { font-size:12px; }
+            .atable th, .atable td { padding:6px 8px !important; }
+        }
     </style>
 
     <!-- ═══ THÈME — appliqué immédiatement avant rendu (no flash) ═══ -->
@@ -10314,13 +10465,18 @@ def write_all_templates():
         </a>
 
         <!-- Nav links desktop -->
-        <div style="display:flex;align-items:center;gap:4px;" class="hidden md:flex">
+        <div style="display:flex;align-items:center;gap:4px;" class="nav-desktop-links">
             <a href="/?category=sports" class="nav-link">⚽ Sports</a>
             <a href="/?category=news" class="nav-link">📰 News</a>
             <a href="/?category=radio" class="nav-link">📻 Radio</a>
             <a href="/?category=iptv" class="nav-link">🌍 Chaînes TV</a>
             <a href="/?category=entertainment" class="nav-link">▶️ YouTube</a>
         </div>
+
+        <!-- Hamburger mobile -->
+        <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
+            <i class="fas fa-bars" id="ham-icon"></i>
+        </button>
 
         <!-- Actions -->
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
@@ -10356,6 +10512,32 @@ def write_all_templates():
 html.dark .nav-link:hover { background:rgba(248,113,113,.1); color:#f87171; }
 </style>
 
+<!-- ══ MENU MOBILE ══ -->
+<div id="mob-menu">
+    <a href="/?category=sports">⚽ Sports</a>
+    <a href="/?category=news">📰 News</a>
+    <a href="/?category=radio">📻 Radio</a>
+    <a href="/?category=iptv">🌍 Chaînes TV</a>
+    <a href="/?category=entertainment">▶️ YouTube</a>
+    <a href="/events">📅 Événements</a>
+    <a href="/go-live" style="background:#dc2626;color:#fff !important;border-radius:10px;">🔴 Go Live</a>
+    <a href="/search">🔍 Rechercher</a>
+    <a href="/settings">⚙️ Paramètres</a>
+    <a href="/admin">🔐 Administration</a>
+</div>
+<script>
+function toggleMobMenu(){
+    var m=document.getElementById('mob-menu');
+    var i=document.getElementById('ham-icon');
+    m.classList.toggle('open');
+    i.className = m.classList.contains('open') ? 'fas fa-times' : 'fas fa-bars';
+}
+// Fermer le menu au clic sur un lien
+document.getElementById('mob-menu').querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click',function(){ document.getElementById('mob-menu').classList.remove('open'); });
+});
+</script>
+
 <!-- ══ FAVORIS PANEL ══ -->
 <div id="fav-panel">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e7eb;flex-shrink:0;">
@@ -10385,7 +10567,7 @@ html.dark .nav-link:hover { background:rgba(248,113,113,.1); color:#f87171; }
 </aside>
 
 <!-- ══ MAIN CONTENT ══ -->
-<main style="max-width:1400px;margin:0 auto;padding:20px 16px;">
+<main class="main-container" style="max-width:1400px;margin:0 auto;padding:20px 16px;">
     {% block content %}{% endblock %}
 </main>
 
@@ -10449,7 +10631,7 @@ html.dark .nav-link:hover { background:rgba(248,113,113,.1); color:#f87171; }
             <p class="footer-copyright" style="font-size:12px;color:#9ca3af;margin:0;">© 2026 {{ app_name }} — BEN CORPORATION · Tous droits réservés</p>
             <div style="display:flex;align-items:center;gap:12px;">
                 <span style="font-size:11px;color:#d1d5db;padding:3px 10px;background:rgba(220,38,38,.08);border-radius:99px;color:#dc2626;font-weight:700;">🔴 LIVE</span>
-                <span style="font-size:11px;color:#9ca3af;">v7.0 ULTIMATE</span>
+                <span style="font-size:11px;color:#9ca3af;">v2.0 </span>
             </div>
         </div>
     </div>
