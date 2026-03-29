@@ -2765,63 +2765,43 @@ async def lifespan(app: FastAPI):
     # ── 3. Initialisation des données ──────────────────────────────────
     db = SessionLocal()
     try:
-        owner = db.query(User).filter(User.email == settings.OWNER_ID).first()
-        admin_password = settings.ADMIN_PASSWORD
-        if len(admin_password.encode('utf-8')) > 72:
-            admin_password = admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+        # ── Compte admin unique ────────────────────────────────────────────
+        # Email : erickbenoit337@gmail.com  |  Username : WALKER92259
+        # Mot de passe : WALKER92259
+        # Le login accepte email OU username
+        _admin_email    = "erickbenoit337@gmail.com"
+        _admin_username = "WALKER92259"
+        _admin_password = "WALKER92259"
+        if len(_admin_password.encode('utf-8')) > 72:
+            _admin_password = _admin_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+
+        owner = db.query(User).filter(
+            or_(User.email == _admin_email, User.username == _admin_username)
+        ).first()
+
         if not owner:
             owner = User(
-                username=settings.ADMIN_USERNAME,
-                email=settings.OWNER_ID,
-                hashed_password=get_password_hash(admin_password),
+                username=_admin_username,
+                email=_admin_email,
+                hashed_password=get_password_hash(_admin_password),
                 is_admin=True,
                 is_owner=True,
                 is_active=True,
                 created_at=datetime.utcnow()
             )
             db.add(owner)
-            logger.info("✅ Compte propriétaire créé")
+            logger.info(f"✅ Compte admin créé : {_admin_username} / {_admin_email}")
         else:
-            # Toujours synchroniser username + mot de passe avec les settings
-            owner.username = settings.ADMIN_USERNAME
-            owner.hashed_password = get_password_hash(admin_password)
-            owner.is_owner = True
-            owner.is_admin = True
-            owner.is_active = True
-            owner.is_blocked = False
+            owner.username             = _admin_username
+            owner.email                = _admin_email
+            owner.hashed_password      = get_password_hash(_admin_password)
+            owner.is_owner             = True
+            owner.is_admin             = True
+            owner.is_active            = True
+            owner.is_blocked           = False
             owner.failed_login_attempts = 0
-            owner.locked_until = None
-            logger.info("✅ Compte propriétaire synchronisé")
-
-        # ── Second compte admin (email) ──────────────────────────────────
-        admin2_email = "erickbenoit337@gmail.com"
-        admin2_username = "erickbenoit337"
-        admin2_password = "WALKER92259"
-        if len(admin2_password.encode('utf-8')) > 72:
-            admin2_password = admin2_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        admin2 = db.query(User).filter(User.email == admin2_email).first()
-        if not admin2:
-            admin2 = User(
-                username=admin2_username,
-                email=admin2_email,
-                hashed_password=get_password_hash(admin2_password),
-                is_admin=True,
-                is_owner=True,
-                is_active=True,
-                created_at=datetime.utcnow()
-            )
-            db.add(admin2)
-            logger.info("✅ Compte admin erickbenoit337 créé")
-        else:
-            admin2.username = admin2_username
-            admin2.hashed_password = get_password_hash(admin2_password)
-            admin2.is_admin = True
-            admin2.is_owner = True
-            admin2.is_active = True
-            admin2.is_blocked = False
-            admin2.failed_login_attempts = 0
-            admin2.locked_until = None
-            logger.info("✅ Compte admin erickbenoit337 synchronisé")
+            owner.locked_until         = None
+            logger.info(f"✅ Compte admin synchronisé : {_admin_username} / {_admin_email}")
         db.commit()
         init_external_streams(db)
         init_iptv_playlists(db)
@@ -10294,10 +10274,10 @@ def write_all_templates():
 
         /* ── Conteneur principal ── */
         .main-container { max-width:1400px; margin:0 auto; padding:16px; }
-        @media (max-width:640px) { .main-container { padding:10px 8px; } }
+        @media (max-width:640px) { .main-container { padding:8px 8px; } }
 
         /* ── Navigation mobile ── */
-        #mob-menu { display:none; flex-direction:column; gap:4px; padding:10px 12px 14px;
+        #mob-menu { display:none; flex-direction:column; gap:2px; padding:8px 12px 12px;
             border-top:1px solid #e5e7eb; background:#fff; }
         html.dark #mob-menu { background:#1f2937; border-color:#374151; }
         #mob-menu.open { display:flex; }
@@ -10307,91 +10287,109 @@ def write_all_templates():
         #ham-btn { display:none; align-items:center; justify-content:center;
             width:38px; height:38px; border:none; background:transparent; cursor:pointer;
             border-radius:8px; color:inherit; font-size:20px; }
-        @media (max-width:768px) {
+        @media (max-width:900px) {
             #ham-btn { display:flex; }
             .nav-desktop-links { display:none !important; }
         }
 
-        /* ── Grilles adaptatives ── */
-        @media (max-width:480px) {
-            /* Pays/chaînes : 2 colonnes sur très petit écran */
-            #countries-grid { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
-            #ext-grid       { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
-            #live-grid      { grid-template-columns: repeat(2, 1fr) !important; gap:8px !important; }
-        }
-        @media (min-width:481px) and (max-width:768px) {
-            #countries-grid { grid-template-columns: repeat(3, 1fr) !important; }
-            #ext-grid       { grid-template-columns: repeat(2, 1fr) !important; }
+        /* ── HERO compact mobile ── */
+        @media (max-width:640px) {
+            .hero-section { padding:22px 16px !important; border-radius:14px !important; }
+            .hero-section h1 { font-size:1.45rem !important; margin-bottom:8px !important; }
+            .hero-section p  { font-size:.875rem !important; margin-bottom:14px !important; }
+            .hero-btns { gap:8px !important; }
+            .hero-btns a { padding:8px 14px !important; font-size:13px !important; }
         }
 
-        /* ── Cards ── */
+        /* ── Gap de page réduit sur mobile ── */
+        @media (max-width:640px) {
+            .page-gap { gap:24px !important; }
+        }
+
+        /* ── GRILLES : 2 colonnes garanties sur mobile ── */
+        /* Catégories thématiques */
+        .grid-categories {
+            display:grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(150px,44vw), 1fr));
+            gap:10px;
+        }
+        @media (max-width:400px) {
+            .grid-categories { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* Pays */
+        .grid-countries {
+            display:grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(130px,44vw), 1fr));
+            gap:8px;
+        }
+        @media (max-width:400px) {
+            .grid-countries { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* Flux externes */
+        .grid-streams {
+            display:grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(160px,44vw), 1fr));
+            gap:10px;
+        }
+        @media (max-width:400px) {
+            .grid-streams { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* Lives */
+        .grid-lives {
+            display:grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(220px,44vw), 1fr));
+            gap:12px;
+        }
+        @media (max-width:400px) {
+            .grid-lives { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        /* ── Filtres continents/catégories scrollables ── */
+        .filters-scroll {
+            display:flex; flex-wrap:nowrap; gap:6px; overflow-x:auto;
+            padding-bottom:6px; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+        }
+        .filters-scroll::-webkit-scrollbar { display:none; }
+        .filters-scroll > * { flex-shrink:0; }
+
+        /* ── Cards compactes sur petit écran ── */
         @media (max-width:480px) {
-            .stream-card, .ext-card { font-size:12px; }
-            .country-card { min-height:75px !important; }
+            .country-card { min-height:72px !important; }
             .ext-card-img { height:72px !important; }
+            .stream-card, .ext-card { font-size:12px; }
         }
 
-        /* ── Filtres catégories horizontaux scrollables sur mobile ── */
-        @media (max-width:768px) {
-            .cat-filters { flex-wrap:nowrap !important; overflow-x:auto !important;
-                padding-bottom:4px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
-            .cat-filters::-webkit-scrollbar { display:none; }
-            .flt-btn { flex-shrink:0; white-space:nowrap; }
-        }
-
-        /* ── Player / watch pages ── */
+        /* ── Player ── */
         @media (max-width:768px) {
             .watch-layout { flex-direction:column !important; }
             .watch-sidebar { width:100% !important; max-width:none !important; }
-            .video-wrap { border-radius:.5rem !important; }
         }
 
-        /* ── Admin dashboard ── */
+        /* ── Admin ── */
         @media (max-width:768px) {
             .admin-tabs { flex-wrap:wrap !important; gap:4px !important; }
             .admin-tabs button { font-size:11px !important; padding:6px 10px !important; }
             .astat-grid { grid-template-columns: repeat(2,1fr) !important; }
         }
-        @media (max-width:480px) {
-            .astat-grid { grid-template-columns: 1fr 1fr !important; }
-        }
 
-        /* ── Titres et sections ── */
+        /* ── Formulaires iOS fix ── */
         @media (max-width:640px) {
-            h1 { font-size:1.4rem !important; }
-            h2 { font-size:1.1rem !important; }
-            section { margin-bottom:20px !important; }
-        }
-
-        /* ── Hero / bannière principale ── */
-        @media (max-width:640px) {
-            .hero-section { padding:20px 12px !important; }
-            .hero-section h1 { font-size:1.5rem !important; }
-        }
-
-        /* ── EPG Sidebar mobile ── */
-        @media (max-width:480px) {
-            #epg-sidebar { width:100% !important; }
+            input, textarea, select { font-size:16px !important; }
         }
 
         /* ── Toast mobile ── */
         @media (max-width:480px) {
             #toast-wrap { right:8px; left:8px; max-width:none; }
+            #fav-panel  { right:8px; left:8px; width:auto; }
+            #epg-sidebar { width:100% !important; }
         }
 
-        /* ── Formulaires ── */
-        @media (max-width:640px) {
-            input, textarea, select { font-size:16px !important; } /* évite zoom iOS */
-        }
-
-        /* ── Footer ── */
-        @media (max-width:640px) {
-            footer .footer-inner { flex-direction:column !important; gap:16px !important; text-align:center; }
-        }
-
-        /* ── Page profil / settings ── */
-        @media (max-width:640px) {
-            .settings-grid { grid-template-columns:1fr !important; }
+        /* ── Footer mobile ── */
+        @media (max-width:768px) {
+            .footer-grid { grid-template-columns:1fr !important; gap:24px !important; }
         }
 
         /* ── Tableau admin ── */
@@ -10585,7 +10583,7 @@ document.getElementById('mob-menu').querySelectorAll('a').forEach(function(a){
     html.dark .footer-support-box code { background:#374151 !important; color:#d1d5db !important; }
     </style>
     <div style="max-width:1400px;margin:0 auto;padding:48px 16px 28px;">
-        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px;margin-bottom:36px;" class="footer-grid">
+        <div class="footer-grid" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px;margin-bottom:36px;">
             <style>@media(max-width:768px){.footer-grid{grid-template-columns:1fr!important;}}</style>
             <!-- Col 1 : Brand -->
             <div class="footer-col">
@@ -10842,15 +10840,15 @@ document.addEventListener('DOMContentLoaded', function() {
     INDEX_TEMPLATE = r'''{% extends "base.html" %}
 {% block title %}{{ app_name }} — Streaming TV en direct{% endblock %}
 {% block content %}
-<div style="display:flex;flex-direction:column;gap:40px;">
+<div class="page-gap" style="display:flex;flex-direction:column;gap:40px;">
 
 <!-- ── HERO ── -->
-<section style="background:linear-gradient(135deg,#b91c1c 0%,#dc2626 40%,#f97316 100%);border-radius:20px;padding:48px 32px;color:#fff;position:relative;overflow:hidden;">
+<section class="hero-section" style="background:linear-gradient(135deg,#b91c1c 0%,#dc2626 40%,#f97316 100%);border-radius:20px;padding:48px 32px;color:#fff;position:relative;overflow:hidden;">
     <div style="position:absolute;inset:0;opacity:.07;font-size:12rem;display:flex;align-items:center;justify-content:flex-end;padding-right:24px;pointer-events:none;">📺</div>
     <div style="position:relative;max-width:600px;">
         <h1 style="font-size:2.2rem;font-weight:900;margin:0 0 12px;line-height:1.15;">Bienvenue sur <span style="white-space:nowrap;">{{ app_name }}</span></h1>
         <p style="font-size:1rem;color:rgba(255,255,255,.85);margin:0 0 24px;line-height:1.6;">Regardez des milliers de chaînes de télévision du monde entier en direct et gratuitement.</p>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        <div class="hero-btns" style="display:flex;flex-wrap:wrap;gap:10px;">
             <a href="#live" style="background:#fff;color:#dc2626;padding:10px 22px;border-radius:99px;font-weight:700;font-size:14px;text-decoration:none;display:flex;align-items:center;gap:6px;">
                 <i class="fas fa-circle" style="font-size:9px;animation:livePulse 1s infinite;color:#dc2626;"></i> En direct
             </a>
@@ -10889,7 +10887,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <span style="width:32px;height:32px;background:#fee2e2;border-radius:8px;display:flex;align-items:center;justify-content:center;">🔴</span>
         Lives en direct <span style="font-size:13px;font-weight:500;color:#6b7280;">({{ live_streams|length }})</span>
     </h2>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;">
+    <div class="grid-lives">
         {% for stream in live_streams %}
         <a href="/watch/user/{{ stream.id }}" class="stream-card" style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;">
             <style>html.dark .stream-card{background:#1f2937;border-color:#374151;}</style>
@@ -10922,7 +10920,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <!-- Filtre continents -->
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;" id="cont-filters">
+    <div class="filters-scroll" style="margin-bottom:16px;" id="cont-filters">
         <button onclick="filterCont('all',this)" class="cont-btn" style="padding:6px 16px;border-radius:99px;border:none;cursor:pointer;font-size:12px;font-weight:700;background:#dc2626;color:#fff;">🌐 Tous</button>
         <button onclick="filterCont('AF',this)" class="cont-btn" style="padding:6px 16px;border-radius:99px;border:1px solid #d1d5db;cursor:pointer;font-size:12px;font-weight:600;background:transparent;color:inherit;">🌍 Afrique</button>
         <button onclick="filterCont('EU',this)" class="cont-btn" style="padding:6px 16px;border-radius:99px;border:1px solid #d1d5db;cursor:pointer;font-size:12px;font-weight:600;background:transparent;color:inherit;">🌍 Europe</button>
@@ -10933,7 +10931,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <button onclick="filterCont('ME',this)" class="cont-btn" style="padding:6px 16px;border-radius:99px;border:1px solid #d1d5db;cursor:pointer;font-size:12px;font-weight:600;background:transparent;color:inherit;">🕌 Moyen-Orient</button>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;" id="countries-grid">
+    <div class="grid-countries" id="countries-grid">
         {% set cont_map = {
             'FR':'EU','BE':'EU','CH':'EU','LU':'EU','DE':'EU','ES':'EU','IT':'EU','PT':'EU',
             'NL':'EU','RU':'EU','PL':'EU','UA':'EU','RO':'EU','BG':'EU','RS':'EU','HR':'EU',
@@ -10994,7 +10992,7 @@ document.addEventListener('DOMContentLoaded', function() {
             Catégories thématiques
         </h2>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">
+    <div class="grid-categories">
         {% for pl in pl_categories %}
         <a href="/?playlist={{ pl.name }}" class="stream-card"
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;padding:14px 12px;align-items:center;gap:8px;">
@@ -11031,7 +11029,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <button onclick="openEPGSidebar()" style="padding:5px 14px;border-radius:99px;border:1px solid #d1d5db;cursor:pointer;font-size:12px;font-weight:600;background:transparent;color:inherit;">☰ EPG</button>
         </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;" id="ext-grid">
+    <div class="grid-streams" id="ext-grid">
         {% for stream in external_streams %}
         <a href="/watch/external/{{ stream.id }}" class="stream-card ext-card" data-stype="{{ stream.stream_type }}"
            style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;text-decoration:none;color:inherit;display:flex;flex-direction:column;">
