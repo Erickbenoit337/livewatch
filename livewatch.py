@@ -13789,7 +13789,11 @@ window.closeAd = function(){
     if(overlay) overlay.style.display = 'none';
 };
 </script>
-<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
+<script type="text/javascript" data-cfasync="false">
+/*<![CDATA[/* */
+(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+/*]]>/* */
+</script>
         <!-- Lecteur HLS/MP4 -->
         {% if stream.stream_type in ['hls','mp4','dash'] %}
         <video id="we-video" controls autoplay playsinline
@@ -14633,7 +14637,11 @@ window.closeAd = function(){
     if(overlay) overlay.style.display = 'none';
 };
 </script>
-<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
+<script type="text/javascript" data-cfasync="false">
+/*<![CDATA[/* */
+(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+/*]]>/* */
+</script>
         <video id="wi-video" controls autoplay playsinline style="width:100%;height:100%;background:#000;"></video>
         <div style="position:absolute;top:12px;left:12px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;" class="live-badge">📺 LIVE</div>
         <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
@@ -14969,7 +14977,11 @@ window.closeAd = function(){
 })();
 window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o)o.style.display='none';};
 </script>
-<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
+<script type="text/javascript" data-cfasync="false">
+/*<![CDATA[/* */
+(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+/*]]>/* */
+</script>
         {% if stream.stream_url %}
         <video id="wu-video" controls autoplay playsinline style="width:100%;height:100%;"></video>
         {% else %}
