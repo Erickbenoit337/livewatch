@@ -3098,7 +3098,12 @@ async def rate_limit_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # Autoriser caméra/micro sur /go-live et /watch/ (nécessaire pour streamer)
+    path = request.url.path
+    if path.startswith("/go-live") or path.startswith("/watch/"):
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(self), camera=(self)"
+    else:
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     # Note: HSTS seulement en production HTTPS réelle
     # response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
@@ -13746,6 +13751,45 @@ document.addEventListener('DOMContentLoaded',function(){
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
 
+<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="position:absolute;top:10px;right:10px;">
+        <button id="ad-skip-btn" onclick="closeAd()" disabled
+            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
+            Passer dans <span id="ad-countdown">5</span>s
+        </button>
+    </div>
+    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
+    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;">
+        <!-- Le script publicitaire est injecté ici -->
+    </div>
+    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+</div>
+<script>
+(function(){
+    var remaining = 5;
+    var timer = setInterval(function(){
+        remaining--;
+        var el = document.getElementById('ad-countdown');
+        if(el) el.textContent = remaining;
+        if(remaining <= 0){
+            clearInterval(timer);
+            var btn = document.getElementById('ad-skip-btn');
+            if(btn){
+                btn.disabled = false;
+                btn.style.cursor = 'pointer';
+                btn.style.background = '#dc2626';
+                btn.innerHTML = '✕ Fermer';
+            }
+        }
+    }, 1000);
+})();
+window.closeAd = function(){
+    var overlay = document.getElementById('ad-overlay');
+    if(overlay) overlay.style.display = 'none';
+};
+</script>
+<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
         <!-- Lecteur HLS/MP4 -->
         {% if stream.stream_type in ['hls','mp4','dash'] %}
         <video id="we-video" controls autoplay playsinline
@@ -14550,6 +14594,46 @@ document.addEventListener('DOMContentLoaded',function(){
 
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
+
+<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="position:absolute;top:10px;right:10px;">
+        <button id="ad-skip-btn" onclick="closeAd()" disabled
+            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
+            Passer dans <span id="ad-countdown">5</span>s
+        </button>
+    </div>
+    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
+    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;">
+        <!-- Le script publicitaire est injecté ici -->
+    </div>
+    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+</div>
+<script>
+(function(){
+    var remaining = 5;
+    var timer = setInterval(function(){
+        remaining--;
+        var el = document.getElementById('ad-countdown');
+        if(el) el.textContent = remaining;
+        if(remaining <= 0){
+            clearInterval(timer);
+            var btn = document.getElementById('ad-skip-btn');
+            if(btn){
+                btn.disabled = false;
+                btn.style.cursor = 'pointer';
+                btn.style.background = '#dc2626';
+                btn.innerHTML = '✕ Fermer';
+            }
+        }
+    }, 1000);
+})();
+window.closeAd = function(){
+    var overlay = document.getElementById('ad-overlay');
+    if(overlay) overlay.style.display = 'none';
+};
+</script>
+<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
         <video id="wi-video" controls autoplay playsinline style="width:100%;height:100%;background:#000;"></video>
         <div style="position:absolute;top:12px;left:12px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;" class="live-badge">📺 LIVE</div>
         <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
@@ -14856,6 +14940,36 @@ document.addEventListener('DOMContentLoaded',function(){
 <div>
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
+
+<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="position:absolute;top:10px;right:10px;">
+        <button id="ad-skip-btn" onclick="closeAd()" disabled
+            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
+            Passer dans <span id="ad-countdown">5</span>s
+        </button>
+    </div>
+    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
+    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
+    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+</div>
+<script>
+(function(){
+    var remaining=5;
+    var timer=setInterval(function(){
+        remaining--;
+        var el=document.getElementById('ad-countdown');
+        if(el) el.textContent=remaining;
+        if(remaining<=0){
+            clearInterval(timer);
+            var btn=document.getElementById('ad-skip-btn');
+            if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.innerHTML='✕ Fermer';}
+        }
+    },1000);
+})();
+window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o)o.style.display='none';};
+</script>
+<script type="text/javascript" data-cfasync="false"> /*<![CDATA[/* */ (function(){var h=window,r="fd7ec091e68289f8a1c446df652e4a71",i=[["siteId",53+985*343*340-757-109581491],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],o=["d3d3LnhhZHNtYXJ0LmNvbS9ma3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWEsvd2pzbWVkaWF0YWdzLm1pbi5qcw=="],y=-1,j,f,s=function(){clearTimeout(f);y++;if(o[y]&&!(1800860822000<(new Date).getTime()&&1<y)){j=h.document.createElement("script");j.type="text/javascript";j.async=!0;var v=h.document.getElementsByTagName("script")[0];j.src="https://"+atob(o[y]);j.crossOrigin="anonymous";j.onerror=s;j.onload=function(){clearTimeout(f);h[r.slice(0,16)+r.slice(0,16)]||s()};f=setTimeout(s,5E3);v.parentNode.insertBefore(j,v)}};if(!h[r]){try{Object.freeze(h[r]=i)}catch(e){}s()}})(); /*]]>/* */ </script>
         {% if stream.stream_url %}
         <video id="wu-video" controls autoplay playsinline style="width:100%;height:100%;"></video>
         {% else %}
