@@ -105,7 +105,7 @@ class Settings:
     APP_DESCRIPTION = "Plateforme de streaming ultime — TV, Sports, Chaînes télévisions mondiales, YouTube Live, Radio & Lives communautaires"
 
     # Sécurité
-    SECRET_KEY = os.getenv("SECRET_KEY", "livewatch-secret-key-walker92259-fixed-2024")
+    SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
     ALGORITHM = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -2462,33 +2462,24 @@ def get_db():
         db.close()
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Vérifie un mot de passe — supporte bcrypt ET le fallback sha256$"""
     try:
-        import hashlib as _hl
-        # Cas 1 : hash de secours sha256$ (généré quand bcrypt indisponible)
-        if hashed and hashed.startswith("sha256$"):
-            expected = "sha256$" + _hl.sha256(plain.encode('utf-8')).hexdigest()
-            return secrets.compare_digest(hashed, expected)
-        # Cas 2 : hash bcrypt normal
         plain_bytes = plain.encode('utf-8')
         if len(plain_bytes) > 72:
             plain = plain_bytes[:72].decode('utf-8', errors='ignore')
         return pwd_context.verify(plain, hashed)
-    except Exception as e:
-        logger.warning(f"verify_password error: {e}")
+    except Exception:
         return False
 
 def get_password_hash(pw: str) -> str:
-    """Hache un mot de passe — bcrypt prioritaire, sha256 en secours"""
     try:
         pw_bytes = pw.encode('utf-8')
         if len(pw_bytes) > 72:
             pw = pw_bytes[:72].decode('utf-8', errors='ignore')
         return pwd_context.hash(pw)
     except Exception as e:
-        logger.warning(f"bcrypt unavailable, using sha256 fallback: {e}")
-        import hashlib as _hl
-        return "sha256$" + _hl.sha256(pw.encode('utf-8')).hexdigest()
+        logger.warning(f"bcrypt error: {e}")
+        import hashlib
+        return "sha256$" + hashlib.sha256(pw.encode()).hexdigest()
     
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -3098,12 +3089,7 @@ async def rate_limit_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    # Autoriser caméra/micro sur /go-live et /watch/ (nécessaire pour streamer)
-    path = request.url.path
-    if path.startswith("/go-live") or path.startswith("/watch/"):
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(self), camera=(self)"
-    else:
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     # Note: HSTS seulement en production HTTPS réelle
     # response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
@@ -4417,71 +4403,7 @@ async def admin_login(
     db: Session = Depends(get_db)
 ):
     """Traitement de la connexion admin"""
-
-    # ── Filet de sécurité : vérification directe des credentials propriétaire ──
-    # Cela permet la connexion même si le hash en base est corrompu
-    _OWNER_USER = os.getenv("ADMIN_USERNAME", "WALKER92259")
-    _OWNER_MAIL = os.getenv("ADMIN_EMAIL", "erickbenoit337@gmail.com")
-    _OWNER_PASS = os.getenv("ADMIN_PASSWORD", "WALKER92259")
-
-    is_direct_match = (
-        (username == _OWNER_USER or username == _OWNER_MAIL)
-        and secrets.compare_digest(password, _OWNER_PASS)
-    )
-
-    # Si correspondance directe → s'assurer que le compte est à jour en base
-    if is_direct_match:
-        user = db.query(User).filter(
-            or_(User.username == _OWNER_USER, User.email == _OWNER_MAIL)
-        ).first()
-        if not user:
-            user = User(
-                username=_OWNER_USER,
-                email=_OWNER_MAIL,
-                hashed_password=get_password_hash(_OWNER_PASS),
-                is_admin=True,
-                is_owner=True,
-                is_active=True,
-                is_blocked=False,
-                failed_login_attempts=0,
-                locked_until=None,
-                created_at=datetime.utcnow()
-            )
-            db.add(user)
-        else:
-            user.hashed_password       = get_password_hash(_OWNER_PASS)
-            user.is_admin              = True
-            user.is_owner              = True
-            user.is_active             = True
-            user.is_blocked            = False
-            user.failed_login_attempts = 0
-            user.locked_until          = None
-        user.last_login  = datetime.utcnow()
-        user.ip_address  = request.client.host if request.client else "0.0.0.0"
-        db.commit()
-
-        token = create_access_token(
-            data={
-                "sub": user.id,
-                "admin": True,
-                "username": user.username,
-                "is_owner": user.is_owner
-            },
-            expires_delta=timedelta(hours=24)
-        )
-        response = RedirectResponse(url="/admin/dashboard", status_code=303)
-        response.set_cookie(
-            key="admin_token",
-            value=token,
-            max_age=86400,
-            httponly=True,
-            samesite="lax",
-            secure=False
-        )
-        logger.info(f"✅ Connexion admin directe : {username}")
-        return response
-
-    # ── Vérification normale via la base de données ──────────────────────────
+    # Accepter username OU email
     user = db.query(User).filter(
         and_(
             or_(User.username == username, User.email == username),
@@ -4491,12 +4413,14 @@ async def admin_login(
     ).first()
 
     if user and verify_password(password, user.hashed_password):
+        # Réinitialiser les tentatives échouées
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login   = datetime.utcnow()
-        user.ip_address   = request.client.host if request.client else "0.0.0.0"
+        user.last_login = datetime.utcnow()
+        user.ip_address = request.client.host if request.client else "0.0.0.0"
         db.commit()
 
+        # Créer le token
         token = create_access_token(
             data={
                 "sub": user.id,
@@ -4506,6 +4430,7 @@ async def admin_login(
             },
             expires_delta=timedelta(hours=24)
         )
+
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
         response.set_cookie(
             key="admin_token",
@@ -4513,7 +4438,7 @@ async def admin_login(
             max_age=86400,
             httponly=True,
             samesite="lax",
-            secure=False
+            secure=False  # Mettre à True en production avec HTTPS
         )
         return response
 
@@ -4522,7 +4447,6 @@ async def admin_login(
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         db.commit()
 
-    logger.warning(f"❌ Tentative de connexion admin échouée : {username}")
     return templates.TemplateResponse(
         request,
         "admin_login.html",
@@ -10124,69 +10048,6 @@ app.add_middleware(
 )
 
 
-async def init_admin_account():
-    """Crée ou synchronise le compte admin propriétaire au démarrage"""
-    db = SessionLocal()
-    try:
-        _admin_email    = os.getenv("ADMIN_EMAIL",    "erickbenoit337@gmail.com")
-        _admin_username = os.getenv("ADMIN_USERNAME", "WALKER92259")
-        _admin_password = os.getenv("ADMIN_PASSWORD", "WALKER92259")
-
-        owner = db.query(User).filter(
-            or_(User.email == _admin_email, User.username == _admin_username)
-        ).first()
-
-        if not owner:
-            owner = User(
-                username=_admin_username,
-                email=_admin_email,
-                hashed_password=get_password_hash(_admin_password),
-                is_admin=True,
-                is_owner=True,
-                is_active=True,
-                is_blocked=False,
-                failed_login_attempts=0,
-                locked_until=None,
-                created_at=datetime.utcnow()
-            )
-            db.add(owner)
-            logger.info(f"✅ Compte admin créé : {_admin_username} / {_admin_email}")
-        else:
-            owner.username              = _admin_username
-            owner.email                 = _admin_email
-            owner.hashed_password       = get_password_hash(_admin_password)
-            owner.is_admin              = True
-            owner.is_owner              = True
-            owner.is_active             = True
-            owner.is_blocked            = False
-            owner.failed_login_attempts = 0
-            owner.locked_until          = None
-            logger.info(f"✅ Compte admin synchronisé : {_admin_username} / {_admin_email}")
-        db.commit()
-    except Exception as e:
-        logger.error(f"❌ init_admin_account : {e}")
-        db.rollback()
-    finally:
-        db.close()
-
-
-async def init_iptv_playlists_async():
-    """Initialise les playlists IPTV si elles n'existent pas encore (async wrapper)"""
-    db = SessionLocal()
-    try:
-        count = db.query(IPTVPlaylist).count()
-        if count == 0:
-            logger.info("⏳ Initialisation des playlists IPTV...")
-            init_iptv_playlists(db)
-        else:
-            logger.info(f"✅ {count} playlists IPTV déjà présentes")
-    except Exception as e:
-        logger.error(f"❌ init_iptv_playlists_async : {e}")
-        db.rollback()
-    finally:
-        db.close()
-
-
 # ── Événement de démarrage enrichi ──────────────────────────────────────
 @app.on_event("startup")
 async def on_startup():
@@ -10220,7 +10081,7 @@ async def on_startup():
 
     # 3. Playlists IPTV
     try:
-        await init_iptv_playlists_async()
+        await init_iptv_playlists()
     except Exception as e:
         logger.warning(f"IPTV init: {e}")
 
@@ -10237,8 +10098,7 @@ async def on_startup():
     except Exception as e:
         logger.error(f"Templates error: {e}")
 
-    _port = int(os.environ.get("PORT", 8001))
-    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{_port}")
+    logger.info(f"✅ {settings.APP_NAME} prêt sur http://0.0.0.0:{settings.PORT}")
     logger.info("=" * 60)
 
 
@@ -10591,19 +10451,19 @@ def write_all_templates():
     <style>
     html.dark nav { background:#1f2937 !important; border-color:#374151 !important; }
     </style>
-    <div style="max-width:1400px;margin:0 auto;padding:0 12px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <div style="max-width:1400px;margin:0 auto;padding:0 16px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
 
         <!-- Logo -->
-        <a href="/" style="display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0;min-width:0;">
-            <div style="width:36px;height:36px;background:linear-gradient(135deg,#dc2626,#f97316);border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
-                <img src="/static/livewatch.png" alt="{{ app_name }}" style="height:26px;width:26px;object-fit:contain;"
+        <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0;">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#dc2626,#f97316);border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+                <img src="/static/livewatch.png" alt="{{ app_name }}" style="height:28px;width:28px;object-fit:contain;"
                      onerror="this.style.display='none';this.parentNode.innerHTML+='<i class=\'fas fa-play\' style=\'color:#fff;font-size:.9rem;\'></i>'">
             </div>
-            <span style="font-size:1.2rem;font-weight:900;background:linear-gradient(135deg,#dc2626,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;">{{ app_name }}</span>
+            <span style="font-size:1.3rem;font-weight:900;background:linear-gradient(135deg,#dc2626,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{{ app_name }}</span>
         </a>
 
-        <!-- Nav links desktop uniquement -->
-        <div style="display:flex;align-items:center;gap:4px;flex:1;justify-content:center;" class="nav-desktop-links">
+        <!-- Nav links desktop -->
+        <div style="display:flex;align-items:center;gap:4px;" class="nav-desktop-links">
             <a href="/?category=sports" class="nav-link">⚽ Sports</a>
             <a href="/?category=news" class="nav-link">📰 News</a>
             <a href="/?category=radio" class="nav-link">📻 Radio</a>
@@ -10611,59 +10471,38 @@ def write_all_templates():
             <a href="/?category=entertainment" class="nav-link">▶️ YouTube</a>
         </div>
 
-        <!-- Zone actions droite -->
-        <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+        <!-- Hamburger mobile -->
+        <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
+            <i class="fas fa-bars" id="ham-icon"></i>
+        </button>
 
-            <!-- Recherche — visible partout -->
+        <!-- Actions -->
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
             <a href="/search" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;color:inherit;text-decoration:none;" title="Rechercher">
                 <i class="fas fa-search"></i>
             </a>
-
-            <!-- Go Live — visible partout, texte masqué sur mobile -->
-            <a href="/go-live" style="display:flex;align-items:center;gap:5px;background:#dc2626;color:#fff;padding:7px 12px;border-radius:99px;text-decoration:none;font-size:13px;font-weight:700;transition:background .2s;white-space:nowrap;">
+            <a href="/go-live" style="display:flex;align-items:center;gap:6px;background:#dc2626;color:#fff;padding:7px 16px;border-radius:99px;text-decoration:none;font-size:13px;font-weight:700;transition:background .2s;">
                 <i class="fas fa-circle" style="font-size:8px;animation:livePulse 1s infinite;"></i>
-                <span class="nav-golive-label">Go Live</span>
+                <span>Go Live</span>
             </a>
-
-            <!-- Thème — visible partout -->
+            <button onclick="toggleFavPanel()" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
+                <i class="fas fa-star" style="color:#f59e0b;"></i>
+            </button>
             <button onclick="toggleTheme()" id="theme-btn" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Thème">
                 <i class="fas fa-sun" id="theme-icon"></i>
             </button>
-
-            <!-- Favoris — masqué sur mobile (accessible via menu hamburger) -->
-            <button onclick="toggleFavPanel()" class="nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;border:none;background:transparent;cursor:pointer;color:inherit;" title="Favoris">
-                <i class="fas fa-star" style="color:#f59e0b;"></i>
-            </button>
-
-            <!-- Événements — masqué sur mobile -->
-            <a href="/events" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;position:relative;">
+            <a href="/events" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 10px;border-radius:8px;position:relative;">
                 📅
                 <span id="ann-badge" style="display:none;position:absolute;top:-2px;right:-4px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:1px 5px;border-radius:99px;line-height:1.4;"></span>
             </a>
-
-            <!-- Paramètres — masqué sur mobile -->
-            <a href="/settings" class="nav-desktop-only" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 8px;border-radius:8px;">
+            <a href="/settings" style="display:flex;align-items:center;gap:5px;text-decoration:none;font-size:13px;font-weight:600;color:inherit;padding:6px 10px;border-radius:8px;">
                 ⚙️
             </a>
-
-            <!-- Admin — masqué sur mobile -->
-            <a href="/admin" class="nav-desktop-only" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;font-size:16px;background:rgba(55,65,81,.1);border:1px solid #e5e7eb;" title="Administration">
+            <a href="/admin" style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;text-decoration:none;font-size:16px;background:rgba(55,65,81,.1);border:1px solid #e5e7eb;" title="Administration">
                 🔐
             </a>
-
-            <!-- Hamburger — toujours visible à droite en dernier -->
-            <button id="ham-btn" onclick="toggleMobMenu()" aria-label="Menu" title="Menu">
-                <i class="fas fa-bars" id="ham-icon"></i>
-            </button>
         </div>
-
     </div>
-    <style>
-        @media (max-width:900px) {
-            .nav-desktop-only { display:none !important; }
-            .nav-golive-label { display:none !important; }
-        }
-    </style>
 </nav>
 <style>
 .nav-link { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:8px; text-decoration:none; font-size:13px; font-weight:600; color:inherit; transition:background .15s; }
@@ -13751,28 +13590,6 @@ document.addEventListener('DOMContentLoaded',function(){
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
 
-<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
-    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
-    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
-    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
-        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
-    </div>
-    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
-    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
-</div>
-<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
-<script>
-(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
-window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
-</script>
-<script type="text/javascript" data-cfasync="false">
-/*<![CDATA[/* */
-(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
-/*]]>/* */
-</script>
         <!-- Lecteur HLS/MP4 -->
         {% if stream.stream_type in ['hls','mp4','dash'] %}
         <video id="we-video" controls autoplay playsinline
@@ -14577,29 +14394,6 @@ window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.st
 
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
-
-<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
-    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
-    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
-    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
-        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
-    </div>
-    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
-    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
-</div>
-<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
-<script>
-(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
-window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
-</script>
-<script type="text/javascript" data-cfasync="false">
-/*<![CDATA[/* */
-(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
-/*]]>/* */
-</script>
         <video id="wi-video" controls autoplay playsinline style="width:100%;height:100%;background:#000;"></video>
         <div style="position:absolute;top:12px;left:12px;background:#dc2626;color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;" class="live-badge">📺 LIVE</div>
         <div style="position:absolute;top:12px;right:12px;display:flex;gap:8px;">
@@ -14906,29 +14700,6 @@ window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.st
 <div>
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
-
-<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
-    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
-    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
-    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
-        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
-    </div>
-    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
-    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
-</div>
-<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
-<script>
-(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
-window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
-</script>
-<script type="text/javascript" data-cfasync="false">
-/*<![CDATA[/* */
-(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
-/*]]>/* */
-</script>
         {% if stream.stream_url %}
         <video id="wu-video" controls autoplay playsinline style="width:100%;height:100%;"></video>
         {% else %}
