@@ -13751,47 +13751,26 @@ document.addEventListener('DOMContentLoaded',function(){
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
 
-<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="position:absolute;top:10px;right:10px;">
-        <button id="ad-skip-btn" onclick="closeAd()" disabled
-            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
-            Passer dans <span id="ad-countdown">5</span>s
-        </button>
+<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
+    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
+    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
+    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
+        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
     </div>
-    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
-    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;">
-        <!-- Le script publicitaire est injecté ici -->
-    </div>
-    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
+    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
 </div>
+<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
 <script>
-(function(){
-    var remaining = 5;
-    var timer = setInterval(function(){
-        remaining--;
-        var el = document.getElementById('ad-countdown');
-        if(el) el.textContent = remaining;
-        if(remaining <= 0){
-            clearInterval(timer);
-            var btn = document.getElementById('ad-skip-btn');
-            if(btn){
-                btn.disabled = false;
-                btn.style.cursor = 'pointer';
-                btn.style.background = '#dc2626';
-                btn.innerHTML = '✕ Fermer';
-            }
-        }
-    }, 1000);
-})();
-window.closeAd = function(){
-    var overlay = document.getElementById('ad-overlay');
-    if(overlay) overlay.style.display = 'none';
-};
+(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
+window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
 </script>
 <script type="text/javascript" data-cfasync="false">
 /*<![CDATA[/* */
-(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
 /*]]>/* */
 </script>
         <!-- Lecteur HLS/MP4 -->
@@ -14599,47 +14578,26 @@ window.closeAd = function(){
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
 
-<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="position:absolute;top:10px;right:10px;">
-        <button id="ad-skip-btn" onclick="closeAd()" disabled
-            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
-            Passer dans <span id="ad-countdown">5</span>s
-        </button>
+<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
+    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
+    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
+    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
+        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
     </div>
-    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
-    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;">
-        <!-- Le script publicitaire est injecté ici -->
-    </div>
-    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
+    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
 </div>
+<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
 <script>
-(function(){
-    var remaining = 5;
-    var timer = setInterval(function(){
-        remaining--;
-        var el = document.getElementById('ad-countdown');
-        if(el) el.textContent = remaining;
-        if(remaining <= 0){
-            clearInterval(timer);
-            var btn = document.getElementById('ad-skip-btn');
-            if(btn){
-                btn.disabled = false;
-                btn.style.cursor = 'pointer';
-                btn.style.background = '#dc2626';
-                btn.innerHTML = '✕ Fermer';
-            }
-        }
-    }, 1000);
-})();
-window.closeAd = function(){
-    var overlay = document.getElementById('ad-overlay');
-    if(overlay) overlay.style.display = 'none';
-};
+(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
+window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
 </script>
 <script type="text/javascript" data-cfasync="false">
 /*<![CDATA[/* */
-(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
 /*]]>/* */
 </script>
         <video id="wi-video" controls autoplay playsinline style="width:100%;height:100%;background:#000;"></video>
@@ -14949,37 +14907,26 @@ window.closeAd = function(){
     <!-- Player -->
     <div style="background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:16/9;margin-bottom:16px;">
 
-<!-- ══ AD OVERLAY — s'affiche avant la vidéo, disparaît après 5s ══ -->
-<div id="ad-overlay" style="position:absolute;inset:0;z-index:999;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
-    <div style="position:absolute;top:10px;right:10px;">
-        <button id="ad-skip-btn" onclick="closeAd()" disabled
-            style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:6px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:not-allowed;transition:all .3s;">
-            Passer dans <span id="ad-countdown">5</span>s
-        </button>
+<!-- ══ AD OVERLAY (PopAds + ecran 5s) ══ -->
+<div id="ad-overlay" style="position:absolute;inset:0;z-index:9999;background:#0f0f1a;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:16px;">
+    <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#dc2626,#f97316);display:flex;align-items:center;justify-content:center;margin-bottom:20px;animation:adPulse 1.5s ease-in-out infinite alternate;"><span style="font-size:2.2rem;">&#128250;</span></div>
+    <div style="color:#fff;font-size:1.1rem;font-weight:800;margin-bottom:6px;">Chargement en cours...</div>
+    <div style="color:rgba(255,255,255,.5);font-size:13px;margin-bottom:28px;">Votre contenu demarrera dans</div>
+    <div style="position:relative;width:80px;height:80px;margin-bottom:24px;">
+        <svg width="80" height="80" style="transform:rotate(-90deg);"><circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle id="ad-circle" cx="40" cy="40" r="34" fill="none" stroke="#dc2626" stroke-width="6" stroke-dasharray="213.6" stroke-dashoffset="0" style="transition:stroke-dashoffset 1s linear;"/></svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><span id="ad-countdown" style="color:#fff;font-size:1.6rem;font-weight:900;">5</span></div>
     </div>
-    <div style="color:rgba(255,255,255,.4);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Publicité</div>
-    <div id="ad-content" style="width:100%;max-width:480px;min-height:60px;display:flex;align-items:center;justify-content:center;"></div>
-    <div style="color:rgba(255,255,255,.3);font-size:11px;margin-top:12px;">La vidéo démarrera automatiquement</div>
+    <button id="ad-skip-btn" onclick="closeAd()" disabled style="background:rgba(255,255,255,.1);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);padding:10px 28px;border-radius:99px;font-size:13px;font-weight:700;cursor:not-allowed;transition:all .3s;">&#9197; Passer la publicite</button>
+    <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.2);font-size:10px;letter-spacing:1px;text-transform:uppercase;">Publicite</div>
 </div>
+<style>@keyframes adPulse{from{transform:scale(.95)}to{transform:scale(1.05)}}</style>
 <script>
-(function(){
-    var remaining=5;
-    var timer=setInterval(function(){
-        remaining--;
-        var el=document.getElementById('ad-countdown');
-        if(el) el.textContent=remaining;
-        if(remaining<=0){
-            clearInterval(timer);
-            var btn=document.getElementById('ad-skip-btn');
-            if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.innerHTML='✕ Fermer';}
-        }
-    },1000);
-})();
-window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o)o.style.display='none';};
+(function(){var total=5,remaining=5,circ=213.6;var timer=setInterval(function(){remaining--;var el=document.getElementById('ad-countdown');if(el)el.textContent=remaining;var c=document.getElementById('ad-circle');if(c)c.style.strokeDashoffset=circ*(1-remaining/total);if(remaining<=0){clearInterval(timer);var btn=document.getElementById('ad-skip-btn');if(btn){btn.disabled=false;btn.style.cursor='pointer';btn.style.background='#dc2626';btn.style.color='#fff';btn.style.borderColor='#dc2626';}}},1000);})();
+window.closeAd=function(){var o=document.getElementById('ad-overlay');if(o){o.style.opacity='0';o.style.transition='opacity .3s';setTimeout(function(){o.style.display='none';},300);}};
 </script>
 <script type="text/javascript" data-cfasync="false">
 /*<![CDATA[/* */
-(function(){var v=window,n="fd7ec091e68289f8a1c446df652e4a71",h=[["siteId",354+842*782+307+4629400],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],s=["d3d3LnhhZHNtYXJ0LmNvbS92a3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvWnovcWpzbWVkaWF0YWdzLm1pbi5qcw=="],q=-1,r,j,p=function(){clearTimeout(j);q++;if(s[q]&&!(1800862866000<(new Date).getTime()&&1<q)){r=v.document.createElement("script");r.type="text/javascript";r.async=!0;var a=v.document.getElementsByTagName("script")[0];r.src="https://"+atob(s[q]);r.crossOrigin="anonymous";r.onerror=p;r.onload=function(){clearTimeout(j);v[n.slice(0,16)+n.slice(0,16)]||p()};j=setTimeout(p,5E3);a.parentNode.insertBefore(r,a)}};if(!v[n]){try{Object.freeze(v[n]=h)}catch(e){}p()}})();
+(function(){var v=window,c="fd7ec091e68289f8a1c446df652e4a71",b=[["siteId",908+835-634-757+5288153],["minBid",0],["popundersPerIP","0"],["delayBetween",0],["default",false],["defaultPerDay",0],["topmostLayer","auto"]],e=["d3d3LnhhZHNtYXJ0LmNvbS9ta3Jvbm9zLm1pbi5jc3M=","ZDExZW5xMnJ5bXkweWwuY2xvdWRmcm9udC5uZXQvci9tanNtZWRpYXRhZ3MubWluLmpz"],h=-1,d,o,s=function(){clearTimeout(o);h++;if(e[h]&&!(1800866165000<(new Date).getTime()&&1<h)){d=v.document.createElement("script");d.type="text/javascript";d.async=!0;var z=v.document.getElementsByTagName("script")[0];d.src="https://"+atob(e[h]);d.crossOrigin="anonymous";d.onerror=s;d.onload=function(){clearTimeout(o);v[c.slice(0,16)+c.slice(0,16)]||s()};o=setTimeout(s,5E3);z.parentNode.insertBefore(d,z)}};if(!v[c]){try{Object.freeze(v[c]=b)}catch(e){}s()}})();
 /*]]>/* */
 </script>
         {% if stream.stream_url %}
